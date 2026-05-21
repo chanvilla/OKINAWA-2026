@@ -14,6 +14,25 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <script>
+    // 1. 這裡是你原本的 Firebase 初始化程式碼 (firebase.initializeApp...)
+  // 2. 這裡是你原本設定 db 的變數 (const db = firebase.firestore();)
+
+  // --- 在這裡放入同步監聽程式碼 ---
+  function startSync() {
+    db.collection('okinawa_trip').onSnapshot((snapshot) => {
+      // 每次資料庫有變動，這段內容會執行
+      snapshot.docChanges().forEach((change) => {
+        if (change.type === "added" || change.type === "modified") {
+          console.log("資料有更新，準備重新整理頁面顯示...");
+          
+          // 重要：這裡要呼叫你原本用來顯示資料的函數
+          // 例如：renderData(change.doc.data());
+        }
+      });
+    });
+  }
+
+  // 執行監聽函數
     tailwind.config = {
       theme: {
         extend: {
@@ -1473,53 +1492,33 @@
     import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
     // Detect environment configurations
-    const appId = typeof __app_id !== 'undefined' ? __app_id : 'okinawa-collaborative-trip-2026';
-    let firebaseConfig ={
-  apiKey: "AIzaSyDBh4an45STG345pwH34fAJwQJWJ5f2Htc",
+    // 確保 Firebase 已經載入
+const firebaseConfig = {apiKey: "AIzaSyDBh4an45STG345pwH34fAJwQJWJ5f2Htc",
   authDomain: "okinawa-2026-15c5b.firebaseapp.com",
   projectId: "okinawa-2026-15c5b",
   storageBucket: "okinawa-2026-15c5b.firebasestorage.app",
   messagingSenderId: "355204834799",
   appId: "1:355204834799:web:17ecd2eb7975e2de70c21a"
-}; 
-    let db = null;
-    let auth = null;
+                       };
 
-    try {
-      if (typeof __firebase_config !== 'undefined' && __firebase_config) {
-        firebaseConfig = JSON.parse(__firebase_config);
-      }
-    } catch (e) {
-      console.log("Firebase environment is not initialized yet. Staying in Local Mode.");
-    }
+// 初始化 App
+if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+}
 
-    if (firebaseConfig) {
-      try {
-        const app = initializeApp(firebaseConfig);
-        auth = getAuth(app);
-        db = getFirestore(app);
+const db = firebase.firestore();
+const auth = firebase.auth();
 
-        // Authenticate first (RULE 3)
-        const initAuth = async () => {
-          if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-            await signInWithCustomToken(auth, __initial_auth_token);
-          } else {
-            await signInAnonymously(auth);
-          }
-        };
-
-        onAuthStateChanged(auth, (user) => {
-          if (user) {
-            startFirestoreSync();
-          } else {
-            initAuth();
-          }
-        });
-      } catch (err) {
-        console.error("Firebase module setup crashed. Retaining offline standalone engines.", err);
-      }
-    }
-
+// 確保執行匿名登入，這對使用 Firestore 的安全性規則非常重要
+auth.signInAnonymously()
+    .then(() => {
+        console.log("Firebase 初始化成功，已匿名登入");
+        // 在這裡開始你的讀寫操作
+    })
+    .catch((error) => {
+        console.error("登入失敗:", error);
+    });
+   
     // Cloud Listener
     const docRef = () => doc(db, 'artifacts', appId, 'public', 'data', 'tripState', 'main');
 
