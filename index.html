@@ -1,0 +1,1591 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Okinawa Gay Trip 2026 - 智能旅遊多功能小幫手</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons for Beautiful Visuals -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Leaflet Map CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            okinawa: {
+              50: '#f0f9ff',
+              100: '#e0f2fe',
+              500: '#0ea5e9',
+              600: '#0284c7',
+              700: '#0369a1',
+              dark: '#0f172a'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    #map {
+      height: 320px;
+      border-radius: 1rem;
+      z-index: 10;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background-color: rgba(156, 163, 175, 0.5);
+      border-radius: 3px;
+    }
+    .rainbow-bar {
+      height: 6px;
+      background: linear-gradient(90deg, #ff2a2a, #ff7a00, #ffea00, #05e105, #0099ff, #8a2be2);
+    }
+    /* Show/hide tabs */
+    .tab-content {
+      display: none;
+    }
+    .tab-content.active {
+      display: block;
+    }
+    /* Floating action button (FAB) for bottom navigation */
+    .fab-nav {
+      transform: translateY(-22px);
+      box-shadow: 0 10px 25px -5px rgba(14, 165, 233, 0.4), 0 8px 10px -6px rgba(236, 72, 153, 0.4);
+    }
+  </style>
+</head>
+<body class="bg-gray-50 text-slate-800 font-sans min-h-screen pb-32 md:pb-12">
+
+  <!-- Rainbow Pride Bar -->
+  <div class="rainbow-bar"></div>
+
+  <!-- MAIN APP CONTAINER -->
+  <div class="max-w-md mx-auto md:max-w-4xl md:px-4 md:py-6">
+    
+    <!-- Top Header -->
+    <header class="bg-white border-b border-gray-100 p-4 sticky top-0 z-50 shadow-sm md:rounded-2xl md:mb-6 md:border">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+          <div class="bg-gradient-to-tr from-okinawa-500 to-pink-500 p-2.5 rounded-xl text-white shadow-md">
+            <i class="fa-solid fa-cloud-sun text-xl"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-1.5">
+              <h1 class="text-base font-black tracking-wide bg-gradient-to-r from-okinawa-600 to-pink-500 bg-clip-text text-transparent">OKINAWA 2026</h1>
+              <span id="sync-badge" class="bg-amber-50 text-amber-600 text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 border border-amber-100">
+                <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                <span id="sync-status-text">本地離線儲存</span>
+              </span>
+            </div>
+            <p class="text-xs text-gray-400 font-semibold flex items-center gap-1">
+              <span>Okinawa Gay Trip 🏳️‍🌈 22-29/6</span>
+              <span>•</span>
+              <span id="current-user-display" class="text-pink-500 font-bold">讀取中...</span>
+            </p>
+          </div>
+        </div>
+        <div class="flex flex-col items-end">
+          <span id="countdown-badge" class="bg-pink-50 text-pink-600 text-[10px] font-bold px-2.5 py-1 rounded-full border border-pink-100">
+            <span id="countdown-text">計算中...</span>
+          </span>
+        </div>
+      </div>
+
+      <!-- Cloud edit banner notification -->
+      <div id="cloud-notification" class="hidden mt-2 bg-slate-900 text-white text-center text-xs py-1.5 px-3 rounded-lg flex items-center justify-center gap-2 animate-pulse">
+        <i class="fa-solid fa-arrows-rotate animate-spin"></i>
+        <span id="cloud-notification-text">正在更新雲端數據...</span>
+      </div>
+    </header>
+
+    <!-- CONTENT SECTIONS (DYNAMIC TABS) -->
+    <div class="px-4 md:px-0">
+      
+      <!-- TAB 1: ITINERARY & MAP (HOME) -->
+      <section id="tab-itinerary" class="tab-content active space-y-6">
+        <!-- Tab Navigation (Days 1 - 8) -->
+        <div class="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 overflow-x-auto custom-scrollbar whitespace-nowrap">
+          <div class="flex space-x-2" id="day-tabs-container">
+            <!-- Tabs injected dynamically -->
+          </div>
+        </div>
+
+        <!-- Dynamic Map Widget -->
+        <div class="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 space-y-2">
+          <div class="flex items-center justify-between px-1">
+            <h2 class="font-bold text-sm text-slate-700 flex items-center gap-2">
+              <i class="fa-solid fa-map-location-dot text-okinawa-500"></i>
+              今日自駕路線圖 <span id="route-stats" class="text-xs text-gray-400 font-normal"></span>
+            </h2>
+            <button onclick="zoomToDayBounds()" class="text-xs text-okinawa-600 font-semibold flex items-center gap-1 hover:underline">
+              <i class="fa-solid fa-arrows-to-eye"></i> 重設視角
+            </button>
+          </div>
+          <div id="map" class="shadow-inner border border-gray-100"></div>
+          <p class="text-[11px] text-gray-400 px-1 text-center"><i class="fa-solid fa-info-circle mr-1"></i>今日自駕路徑，預設出門時間為每日早上 08:00 AM。</p>
+        </div>
+
+        <!-- Itinerary Schedule Card -->
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div class="bg-slate-950 p-4 text-white flex justify-between items-center">
+            <div>
+              <h2 id="schedule-title" class="font-black text-base flex items-center gap-2">
+                <!-- Injected -->
+              </h2>
+              <p class="text-[11px] text-slate-400">所有團友均可即時編輯變更行程</p>
+            </div>
+            <button onclick="openAddEventModal()" class="bg-white/10 hover:bg-white/20 active:scale-95 text-white text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1 transition">
+              <i class="fa-solid fa-plus"></i> 新增行程
+            </button>
+          </div>
+
+          <!-- Schedule Timeline list -->
+          <div class="p-4 space-y-4" id="timeline-list">
+            <!-- Timeline elements injected here -->
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 2: EXPENSE BILL SPLITTER -->
+      <section id="tab-expenses" class="tab-content space-y-6">
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-4">
+          <div class="flex justify-between items-center border-b border-gray-50 pb-3">
+            <div>
+              <h3 class="font-black text-base text-slate-800 flex items-center gap-2">
+                <i class="fa-solid fa-receipt text-amber-500"></i>
+                共同記帳與分賬 (Gay Split)
+              </h3>
+              <p class="text-[11px] text-gray-400">根據最新設定的團隊成員與人數進行即時分攤</p>
+            </div>
+            <button onclick="openExpenseModal()" class="bg-amber-500 hover:bg-amber-600 active:scale-95 text-white text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1 transition">
+              <i class="fa-solid fa-plus"></i> 新增開銷
+            </button>
+          </div>
+          
+          <div id="expense-list-container" class="space-y-2 max-h-80 overflow-y-auto custom-scrollbar pr-1">
+            <!-- Injected -->
+          </div>
+
+          <div class="bg-slate-50 p-4 rounded-2xl space-y-3">
+            <div class="flex justify-between text-sm text-slate-600">
+              <span>群組總花費：</span>
+              <span id="total-expense-amount" class="font-black text-lg text-slate-900">HKD 0.00</span>
+            </div>
+            <div class="border-t border-slate-200/50 pt-3">
+              <h4 class="text-xs font-black text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1">
+                <i class="fa-solid fa-calculator"></i> 分帳結算 (智能簡化路徑)
+              </h4>
+              <div id="settlements-container" class="space-y-2 text-sm text-slate-700">
+                <!-- Calculated results -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 3: GOURMET TRACKER (WITH ADD RESTAURANT) -->
+      <section id="tab-gourmet" class="tab-content space-y-6">
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-4">
+          <div class="flex justify-between items-center border-b border-gray-50 pb-3">
+            <div>
+              <h3 class="font-black text-base text-slate-800 flex items-center gap-2">
+                <i class="fa-solid fa-utensils text-rose-500"></i>
+                沖繩必吃美食地圖收集器
+              </h3>
+              <p class="text-[11px] text-gray-400">打卡品嚐美食，給出星星評分，支持自定義加入！</p>
+            </div>
+            <button onclick="openAddRestaurantModal()" class="bg-rose-500 hover:bg-rose-600 active:scale-95 text-white text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1 transition">
+              <i class="fa-solid fa-plus"></i> 自訂餐廳
+            </button>
+          </div>
+
+          <div class="grid grid-cols-1 gap-3 max-h-[500px] overflow-y-auto custom-scrollbar pr-1" id="gourmet-container">
+            <!-- Foods injected -->
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 4: PACKING CHECKLIST -->
+      <section id="tab-packing" class="tab-content space-y-6">
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-4">
+          <div class="flex items-center justify-between border-b border-gray-50 pb-3">
+            <div>
+              <h3 class="font-black text-base text-slate-800 flex items-center gap-2">
+                <i class="fa-solid fa-clipboard-check text-green-500"></i>
+                出行與行李打包準備清單
+              </h3>
+              <p class="text-[11px] text-gray-400">起飛前逐項核對，萬無一失！</p>
+            </div>
+            <span id="packing-progress" class="bg-green-50 text-green-600 text-xs font-black px-2.5 py-1 rounded-full border border-green-100">0% 已準備</span>
+          </div>
+          <div class="space-y-3" id="packing-list-container">
+            <!-- Checklist items -->
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 5: SYSTEM SETTINGS -->
+      <section id="tab-settings" class="tab-content space-y-6">
+        
+        <!-- User Nickname and Identity -->
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-4">
+          <h3 class="font-black text-base text-slate-800 flex items-center gap-2">
+            <i class="fa-solid fa-circle-user text-indigo-500"></i>
+            目前個人使用者身分
+          </h3>
+          <div class="bg-indigo-50/50 p-4 rounded-xl flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+              <span id="identity-avatar-display" class="text-3xl">😎</span>
+              <div>
+                <p id="identity-name-display" class="font-black text-slate-900 text-sm">讀取中</p>
+                <p class="text-[10px] text-gray-400">每次雲端更新會記錄為此人修改</p>
+              </div>
+            </div>
+            <button onclick="changeIdentity()" class="bg-white border border-indigo-200 text-indigo-600 text-xs font-bold px-3 py-1.5 rounded-xl shadow-xs hover:bg-indigo-50">
+              更換使用者
+            </button>
+          </div>
+        </div>
+
+        <!-- Custom Member and Split Setup -->
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-4">
+          <h3 class="font-black text-base text-slate-800 flex items-center gap-2">
+            <i class="fa-solid fa-users text-sky-500"></i>
+            團隊團員與人數設定
+          </h3>
+          <p class="text-xs text-gray-400">自訂當前出行名單，新增或移除名字將自動更新「分帳功能」！</p>
+
+          <div class="space-y-2" id="members-list-container">
+            <!-- Member badges list -->
+          </div>
+
+          <!-- Add Member Input -->
+          <div class="flex gap-2">
+            <input type="text" id="new-member-input" class="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" placeholder="輸入同伴名字 (如：Alex)">
+            <button onclick="addNewMember()" class="bg-sky-500 hover:bg-sky-600 text-white font-bold px-4 py-2 rounded-xl text-sm transition">
+              新增團員
+            </button>
+          </div>
+        </div>
+
+        <!-- Download Standalone App Section -->
+        <div class="bg-gradient-to-br from-slate-900 to-indigo-950 text-white p-5 rounded-3xl shadow-md space-y-3 relative overflow-hidden">
+          <div class="absolute right-0 bottom-0 opacity-10 translate-x-4 translate-y-4">
+            <i class="fa-solid fa-download text-[130px]"></i>
+          </div>
+          <div class="flex items-center space-x-2">
+            <span class="bg-sky-500/30 px-2.5 py-1 rounded-full text-[10px] font-bold text-sky-300">手機離線專用</span>
+            <span class="bg-white/10 px-2.5 py-1 rounded-full text-[10px] font-bold text-white/80">Okinawa Standalone 💾</span>
+          </div>
+          <h3 class="font-black text-lg">下載本程式至手機/電腦</h3>
+          <p class="text-xs text-slate-300 leading-relaxed">
+            我們特地設計了「自生自存碼」，點擊下方按鈕可**直接將目前版本下載成一個完全獨立的 HTML 檔案**！你可在無訊號/斷網狀態下於沖繩照常自駕查看與離線儲存。
+          </p>
+          <div class="pt-2 flex gap-3">
+            <button onclick="downloadSelfHtml()" class="bg-white text-slate-900 text-xs font-bold px-4 py-2.5 rounded-xl shadow-lg inline-flex items-center gap-1.5 hover:bg-slate-100 transition active:scale-95">
+              <i class="fa-solid fa-file-arrow-down text-rose-500 text-sm"></i> 立即打包下載此 App
+            </button>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+  </div>
+
+  <!-- BOTTOM NAVIGATION FOR MOBILE & DESKTOP (CENTERED FAB ITINERARY BAR) -->
+  <div class="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-gray-100 py-2.5 px-3 flex justify-around items-center z-50 shadow-[0_-5px_25px_rgba(0,0,0,0.06)]">
+    
+    <!-- 1. Expenses -->
+    <button onclick="switchTab('expenses')" id="mobile-nav-expenses" class="mobile-nav-btn flex flex-col items-center justify-center text-slate-400 font-semibold focus:outline-none flex-1 py-1">
+      <i class="fa-solid fa-cash-register text-lg"></i>
+      <span class="text-[9px] mt-1 font-black">分賬記帳</span>
+    </button>
+    
+    <!-- 2. Gourmet -->
+    <button onclick="switchTab('gourmet')" id="mobile-nav-gourmet" class="mobile-nav-btn flex flex-col items-center justify-center text-slate-400 font-semibold focus:outline-none flex-1 py-1">
+      <i class="fa-solid fa-utensils text-lg"></i>
+      <span class="text-[9px] mt-1 font-black">美食收集</span>
+    </button>
+    
+    <!-- 3. CENTER / HIGHLIGHTED: ITINERARY FAB -->
+    <div class="flex-1 flex justify-center relative z-50">
+      <button onclick="switchTab('itinerary')" id="mobile-nav-itinerary" class="mobile-nav-btn fab-nav w-16 h-16 rounded-full bg-gradient-to-tr from-okinawa-500 to-pink-500 text-white flex flex-col items-center justify-center border-4 border-white focus:outline-none transition active:scale-95 active:rotate-6">
+        <i class="fa-solid fa-calendar-day text-xl"></i>
+        <span class="text-[8px] font-black mt-0.5">日程地圖</span>
+      </button>
+    </div>
+
+    <!-- 4. Packing -->
+    <button onclick="switchTab('packing')" id="mobile-nav-packing" class="mobile-nav-btn flex flex-col items-center justify-center text-slate-400 font-semibold focus:outline-none flex-1 py-1">
+      <i class="fa-solid fa-clipboard-check text-lg"></i>
+      <span class="text-[9px] mt-1 font-black">打包清單</span>
+    </button>
+    
+    <!-- 5. Settings -->
+    <button onclick="switchTab('settings')" id="mobile-nav-settings" class="mobile-nav-btn flex flex-col items-center justify-center text-slate-400 font-semibold focus:outline-none flex-1 py-1">
+      <i class="fa-solid fa-gears text-lg"></i>
+      <span class="text-[9px] mt-1 font-black">系統設定</span>
+    </button>
+  </div>
+
+  <!-- IDENTITY SELECTION MODAL (MANDATORY AT FIRST LAUNCH) -->
+  <div id="identity-modal" class="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center z-[2000] p-4 hidden">
+    <div class="bg-white w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl p-6 space-y-5 text-center">
+      <div class="space-y-2">
+        <span class="text-4xl">🏝️🏳️‍🌈</span>
+        <h3 class="text-xl font-black text-slate-900">歡迎來到沖繩自駕小助理</h3>
+        <p class="text-xs text-gray-500">本系統與所有成員雲端即時同步，請選擇你的身分：</p>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3" id="identity-buttons-container">
+        <!-- Identity buttons will be rendered dynamically -->
+      </div>
+      <p class="text-[10px] text-gray-400 font-medium">（隨時可以在右下角「系統設定」切換使用者身分）</p>
+    </div>
+  </div>
+
+  <!-- MODAL: ADD / EDIT EVENT -->
+  <div id="event-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[1000] hidden p-4">
+    <div class="bg-white w-full max-w-md rounded-2xl overflow-hidden shadow-2xl">
+      <div class="bg-okinawa-600 p-4 text-white flex justify-between items-center">
+        <h3 id="modal-title" class="font-black">新增沖繩行程項目</h3>
+        <button onclick="closeEventModal()" class="text-white hover:text-gray-200">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+      <form id="event-form" class="p-5 space-y-4" onsubmit="saveEvent(event)">
+        <input type="hidden" id="modal-event-day" value="1">
+        <input type="hidden" id="modal-event-index" value="">
+
+        <div>
+          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">活動名稱</label>
+          <input type="text" id="modal-event-title" required class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-okinawa-500" placeholder="例如：萬座毛景觀台">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">開始時間</label>
+            <input type="time" id="modal-event-time" required class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-okinawa-500">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">停留時間 (分鐘)</label>
+            <input type="number" id="modal-event-duration" min="0" required class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-okinawa-500" placeholder="60">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">自駕距離 (km)</label>
+            <input type="number" step="0.1" id="modal-event-distance" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-okinawa-500" placeholder="到此景點的距離">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">行車所需時間 (分鐘)</label>
+            <input type="number" id="modal-event-drive-time" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-okinawa-500" placeholder="到此景點的開車時間">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">緯度 Latitude</label>
+            <input type="number" step="0.000001" id="modal-event-lat" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-okinawa-500" placeholder="26.3164">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">經度 Longitude</label>
+            <input type="number" step="0.000001" id="modal-event-lng" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-okinawa-500" placeholder="127.7576">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">備註 / 連結</label>
+          <textarea id="modal-event-notes" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-okinawa-500 h-20" placeholder="可粘貼門票連結、營業時間、Mapcode 或必玩資訊..."></textarea>
+        </div>
+
+        <div class="flex space-x-2 pt-2">
+          <button type="button" onclick="closeEventModal()" class="flex-1 bg-gray-100 hover:bg-gray-200 text-slate-700 font-bold py-2.5 rounded-xl text-sm">取消</button>
+          <button type="submit" class="flex-1 bg-okinawa-500 hover:bg-okinawa-600 text-white font-bold py-2.5 rounded-xl text-sm">儲存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: ADD EXPENSE -->
+  <div id="expense-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[1000] hidden p-4">
+    <div class="bg-white w-full max-w-md rounded-2xl overflow-hidden shadow-2xl">
+      <div class="bg-amber-500 p-4 text-white flex justify-between items-center">
+        <h3 class="font-black">記一筆新消費 (Gay Split)</h3>
+        <button onclick="closeExpenseModal()" class="text-white hover:text-gray-200">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+      <form id="expense-form" class="p-5 space-y-4" onsubmit="saveExpense(event)">
+        <div>
+          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">消費描述</label>
+          <input type="text" id="expense-desc" required class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" placeholder="如：OTS 租車費、第一天晚餐">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">金額 (HKD)</label>
+            <input type="number" step="0.01" id="expense-amount" required class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" placeholder="0.00">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">付款人</label>
+            <select id="expense-payer" required class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white">
+              <!-- Rendered dynamically -->
+            </select>
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">分攤對象</label>
+          <div class="flex items-center space-x-3 text-sm mt-1">
+            <label class="flex items-center space-x-1.5 cursor-pointer">
+              <input type="checkbox" checked disabled class="accent-amber-500">
+              <span class="text-xs text-slate-500 font-bold">全員平均分攤 (<span class="member-count-label">4</span>人)</span>
+            </label>
+          </div>
+        </div>
+        <div class="flex space-x-2 pt-2">
+          <button type="button" onclick="closeExpenseModal()" class="flex-1 bg-gray-100 hover:bg-gray-200 text-slate-700 font-bold py-2.5 rounded-xl text-sm">取消</button>
+          <button type="submit" class="flex-1 bg-amber-500 hover:bg-amber-600 text-white font-bold py-2.5 rounded-xl text-sm">新增</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: ADD RESTAURANT -->
+  <div id="restaurant-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[1000] hidden p-4">
+    <div class="bg-white w-full max-w-md rounded-2xl overflow-hidden shadow-2xl">
+      <div class="bg-rose-500 p-4 text-white flex justify-between items-center">
+        <h3 class="font-black">加入自訂必吃餐廳</h3>
+        <button onclick="closeRestaurantModal()" class="text-white hover:text-gray-200">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+      <form id="restaurant-form" class="p-5 space-y-4" onsubmit="saveCustomRestaurant(event)">
+        <div>
+          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">餐廳/美食名稱</label>
+          <input type="text" id="restaurant-name" required class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500" placeholder="例如：暖暮拉麵 那霸牧志店">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">備註特色 / Mapcode</label>
+          <textarea id="restaurant-note" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500 h-20" placeholder="例如：推薦芝麻拉麵，Mapcode: 33 157 432*34"></textarea>
+        </div>
+        <div class="flex space-x-2 pt-2">
+          <button type="button" onclick="closeRestaurantModal()" class="flex-1 bg-gray-100 hover:bg-gray-200 text-slate-700 font-bold py-2.5 rounded-xl text-sm">取消</button>
+          <button type="submit" class="flex-1 bg-rose-500 hover:bg-rose-600 text-white font-bold py-2.5 rounded-xl text-sm">儲存新增</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MAIN APPLICATION LOGIC (OFFLINE-FIRST)    -->
+  <!-- ========================================== -->
+  <script>
+    // --- GEOLOCATIONS (STATIC) ---
+    const coords = {
+      naha_airport: [26.2064, 127.6465],
+      airbnb: [26.3164, 127.7576],
+      churasun6: [26.2195, 127.6800],
+      dmm: [26.1558, 127.6568],
+      itoman: [26.1293, 127.6661],
+      glass_village: [26.0967, 127.6714],
+      oujima: [26.1295, 127.7736],
+      gelatocafe: [26.1310, 127.7780],
+      okinawa_world: [26.1396, 127.7503],
+      senagajima: [26.1747, 127.6457],
+      zanpa: [26.4389, 127.7144],
+      forest_adventure: [26.4278, 127.7819],
+      zoo: [26.3262, 127.8015],
+      katsuren: [26.3303, 127.8784],
+      kaichu: [26.3314, 127.9103],
+      nuchimasu: [26.3458, 127.9942],
+      blue_grotto: [26.4431, 127.7783],
+      manzamo: [26.5050, 127.8576],
+      busena: [26.5385, 127.9295],
+      orion: [26.5916, 127.9984],
+      churaumi: [26.6944, 127.8781],
+      kouri_beach: [26.6974, 128.0242],
+      kouri_tower: [26.7022, 128.0163],
+      atv: [26.5681, 128.0267],
+      pineapple: [26.6171, 127.9691],
+      nago_museum: [26.5925, 127.9829],
+      round1: [26.2764, 127.7402],
+      minatogawa: [26.2625, 127.7153],
+      naminoue: [26.2201, 127.6718],
+      pref_museum: [26.2285, 127.6931],
+      kokusaidori: [26.2163, 127.6886]
+    };
+
+    // --- DEFAULT INITIALIZATION BACKUPS ---
+    const defaultTripData = {
+      1: {
+        date: '22/6 (一) Day 1',
+        events: [
+          { time: '07:30', title: '香港機場集合', duration: 30, notes: '提早與同伴會合。', isMeal: false },
+          { time: '09:05', title: 'HX676 航班飛往沖繩 (HKG-OKA)', duration: 230, notes: '預計飛行 3 小時 50 分鐘。', isMeal: false },
+          { time: '12:55', title: '抵達那霸機場 (OKA)', duration: 60, notes: '入境並前往租車接駁車。', isMeal: false },
+          { time: '14:00', title: '機場周邊午餐 [Meal]', duration: 60, notes: '隨便找店或A&W簡單果腹。', isMeal: true },
+          { time: '15:00', title: 'OTS / 租車公司取車', duration: 45, startLat: coords.naha_airport[0], startLng: coords.naha_airport[1], endLat: coords.airbnb[0], endLng: coords.airbnb[1], distance: 21, driveTime: 40, notes: '自駕開始！檢查車體，設定導航往 Airbnb 酒店。', isMeal: false },
+          { time: '16:00', title: 'Check-in Airbnb 酒店', duration: 45, startLat: coords.airbnb[0], startLng: coords.airbnb[1], endLat: coords.airbnb[0], endLng: coords.airbnb[1], distance: 1, driveTime: 3, notes: '放置行李，短暫休息。', isMeal: false },
+          { time: '17:00', title: '美國村 (American Village)', duration: 240, notes: '黃昏海灘漫步、逛美式店鋪、晚餐。', isMeal: false },
+          { time: '22:00', title: 'Churasun6 (Gay Bar / Sauna)', duration: 120, startLat: coords.airbnb[0], startLng: coords.airbnb[1], endLat: coords.churasun6[0], endLng: coords.churasun6[1], distance: 17, driveTime: 30, notes: '預定活動！去那霸狂歡。記得喝酒不開車！乘計程車或安排指定駕駛。', isMeal: false }
+        ]
+      },
+      2: {
+        date: '23/6 (二) Day 2',
+        events: [
+          { time: '08:00', title: '從 Airbnb 出發', duration: 0, startLat: coords.airbnb[0], startLng: coords.airbnb[1], endLat: coords.dmm[0], endLng: coords.dmm[1], distance: 24, driveTime: 35, notes: '今天的南部深度自駕之旅啟動！', isMeal: false },
+          { time: '09:00', title: 'DMM Kariyushi 水族館', duration: 120, startLat: coords.dmm[0], startLng: coords.dmm[1], endLat: coords.itoman[0], endLng: coords.itoman[1], distance: 3.5, driveTime: 8, notes: '新世代科技風水族館，有多媒體光影體驗。', isMeal: false },
+          { time: '11:30', title: '[Meal] 糸滿漁民食堂', duration: 75, startLat: coords.itoman[0], startLng: coords.itoman[1], endLat: coords.glass_village[0], endLng: coords.glass_village[1], distance: 6, driveTime: 12, notes: '享用著名黃油烤魚與新鮮海鮮海藻。', isMeal: true },
+          { time: '13:00', title: '琉球玻璃村', duration: 60, startLat: coords.glass_village[0], startLng: coords.glass_village[1], endLat: coords.oujima[0], endLng: coords.oujima[1], distance: 11, driveTime: 20, notes: '欣賞彩色手作玻璃，吹玻璃DIY體驗。', isMeal: false },
+          { time: '14:20', title: '奥武島 (貓島)', duration: 120, startLat: coords.oujima[0], startLng: coords.oujima[1], endLat: coords.gelatocafe[0], endLng: coords.gelatocafe[1], distance: 0.5, driveTime: 2, notes: '島上有非常多溫馴小貓！記得必買「大城天婦羅」或「中本天婦羅」！', isMeal: false },
+          { time: '16:25', title: '[Meal] GELATOPUDDINGCAFE', duration: 45, startLat: coords.gelatocafe[0], startLng: coords.gelatocafe[1], endLat: coords.okinawa_world[0], endLng: coords.okinawa_world[1], distance: 4.5, driveTime: 10, notes: '吃香濃的義式 Gelato 與布丁下午茶。', isMeal: true },
+          { time: '17:20', title: '沖繩世界 (文化王國・玉泉洞)', duration: 60, startLat: coords.okinawa_world[0], startLng: coords.okinawa_world[1], endLat: coords.senagajima[0], endLng: coords.senagajima[1], distance: 16, driveTime: 25, notes: '參觀震撼人心的百萬年巨大鐘乳石洞！(預購門票：https://www.kkday.com/zh-hk/product/178749-okinawa-world-admission-ticket)', isMeal: false },
+          { time: '18:45', title: '瀨長島 Umikaji Terrace', duration: 120, startLat: coords.senagajima[0], startLng: coords.senagajima[1], endLat: coords.airbnb[0], endLng: coords.airbnb[1], distance: 22, driveTime: 35, notes: '約18:50日落前抵達！純白地中海風店鋪，喝啤酒、吃幸福鬆餅、看夕陽。', isMeal: false },
+          { time: '21:30', title: '返回 Airbnb 基地', duration: 0, notes: '結束豐富的一天，返回北谷休息。', isMeal: false }
+        ]
+      },
+      3: {
+        date: '24/6 (三) Day 3',
+        events: [
+          { time: '08:00', title: '從 Airbnb 出發', duration: 0, startLat: coords.airbnb[0], startLng: coords.airbnb[1], endLat: coords.zanpa[0], endLng: coords.zanpa[1], distance: 18, driveTime: 35, notes: '前進殘波岬與東部跨海大橋。', isMeal: false },
+          { time: '08:35', title: '殘波岬燈塔', duration: 55, startLat: coords.zanpa[0], startLng: coords.zanpa[1], endLat: coords.forest_adventure[0], endLng: coords.forest_adventure[1], distance: 6.5, driveTime: 15, notes: '白色巨大燈塔，壯觀的懸崖峭壁與海浪。', isMeal: false },
+          { time: '09:45', title: '森林冒險 (Forest Adventure Onna)', duration: 135, startLat: coords.forest_adventure[0], startLng: coords.forest_adventure[1], endLat: coords.zoo[0], endLng: coords.zoo[1], distance: 13, driveTime: 25, notes: '超爽空中滑索、高空攀爬、泰山大冒險！需穿著布鞋。', isMeal: false },
+          { time: '12:00', title: '恩納村當地午餐 [Meal]', duration: 60, notes: '可在便利商店簡單吃或沿途沖繩麵店。', isMeal: true },
+          { time: '13:35', title: '沖繩兒童王國動物園 (Okinawa Zoo)', duration: 105, startLat: coords.zoo[0], startLng: coords.zoo[1], endLat: coords.katsuren[0], endLng: coords.katsuren[1], distance: 13, driveTime: 25, notes: '親近動物，還有科技感互動體驗館。', isMeal: false },
+          { time: '15:45', title: '勝連城跡', duration: 45, startLat: coords.katsuren[0], startLng: coords.katsuren[1], endLat: coords.kaichu[0], endLng: coords.kaichu[1], distance: 3, driveTime: 5, notes: '世界文化遺產，建在山丘上的弧形石牆，俯瞰太平洋。', isMeal: false },
+          { time: '16:35', title: '海中道路 (Beach)', duration: 40, startLat: coords.kaichu[0], startLng: coords.kaichu[1], endLat: coords.nuchimasu[0], endLng: coords.nuchimasu[1], distance: 9, driveTime: 15, notes: '開車穿過海平面！路邊海灘可踏水踩沙。', isMeal: false },
+          { time: '17:30', title: '命御庭 製鹽工廠 (Nuchimasu)', duration: 45, startLat: coords.nuchimasu[0], startLng: coords.nuchimasu[1], endLat: coords.airbnb[0], endLng: coords.airbnb[1], distance: 28, driveTime: 45, notes: '觀看如雪花般的海鹽工廠，吃「海鹽冰淇淋」眺望著名的果凍藍海（果報之崖）。', isMeal: false },
+          { time: '19:00', title: '北谷晚餐與回程 [Meal]', duration: 120, notes: '推薦：琉球之牛北谷店，吃高檔和牛犒賞一整天駕駛與攀爬勞累！', isMeal: true }
+        ]
+      },
+      4: {
+        date: '25/6 (四) Day 4',
+        events: [
+          { time: '08:00', title: '從 Airbnb 出發', duration: 0, startLat: coords.airbnb[0], startLng: coords.airbnb[1], endLat: coords.blue_grotto[0], endLng: coords.blue_grotto[1], distance: 17, driveTime: 35, notes: '今天主攻浮潛與水上活動！', isMeal: false },
+          { time: '08:35', title: '沖繩青潛 (青之洞窟 浮潛)', duration: 180, startLat: coords.blue_grotto[0], startLng: coords.blue_grotto[1], endLat: coords.manzamo[0], endLng: coords.manzamo[1], distance: 10, driveTime: 20, notes: '在夢幻神秘的藍光溶洞中浮潛或潛水。預訂連結：https://www.theblues.co.jp/okinawa-snorkel', isMeal: false },
+          { time: '12:00', title: '恩納村午餐 [Meal]', duration: 75, notes: '可去「前兼久」漁港吃海鮮。', isMeal: true },
+          { time: '13:35', title: '萬座毛景觀台', duration: 45, startLat: coords.manzamo[0], startLng: coords.manzamo[1], endLat: coords.busena[0], endLng: coords.busena[1], distance: 11, driveTime: 20, notes: '猶如大象鼻子的巨型海蝕崖，拍照勝地。', isMeal: false },
+          { time: '14:40', title: '部瀨名海中公園', duration: 120, startLat: coords.busena[0], startLng: coords.busena[1], endLat: coords.airbnb[0], endLng: coords.airbnb[1], distance: 26, driveTime: 40, notes: '乘坐復古鯨魚玻璃船、進入海中展望塔，俯瞰水下魚群。', isMeal: false },
+          { time: '17:20', title: '返回 Airbnb / 自由時間', duration: 120, notes: '在北谷美國村散步、買藥妝、享受傍晚啤酒。', isMeal: false }
+        ]
+      },
+      5: {
+        date: '26/6 (五) Day 5',
+        events: [
+          { time: '08:00', title: '觀看 Japan vs Sweden 直播', duration: 120, notes: '在房內吃早餐，看大賽！為日本加油！', isMeal: false },
+          { time: '10:00', title: '出發往 Orion 啤酒廠', duration: 0, startLat: coords.airbnb[0], startLng: coords.airbnb[1], endLat: coords.orion[0], endLng: coords.orion[1], distance: 38, driveTime: 40, notes: '直奔名護市。', isMeal: false },
+          { time: '10:40', title: 'Orion 啤酒廠 (Happy Park)', duration: 90, startLat: coords.orion[0], startLng: coords.orion[1], endLat: coords.churaumi[0], endLng: coords.churaumi[1], distance: 24, driveTime: 40, notes: '預約參觀！了解沖繩本地 Orion 製造，司機不可以喝酒，其他人暢飲生啤。', isMeal: false },
+          { time: '12:30', title: '名護午餐 [Meal]', duration: 60, notes: '沖繩阿古豬炸豬排、拉麵。', isMeal: true },
+          { time: '13:50', title: '美麗海水族館', duration: 180, startLat: coords.churaumi[0], startLng: coords.churaumi[1], endLat: coords.kouri_beach[0], endLng: coords.kouri_beach[1], distance: 19, driveTime: 30, notes: '世界第二大水槽「黑潮之海」，看巨型鯨鯊和鬼蝠魟！門票：https://www.klook.com/zh-HK/activity/1421-churaumi-aquarium-okinawa/', isMeal: false },
+          { time: '17:00', title: '古宇利島、古宇利海灘', duration: 60, startLat: coords.kouri_beach[0], startLng: coords.kouri_beach[1], endLat: coords.kouri_tower[0], endLng: coords.kouri_tower[1], distance: 1.5, driveTime: 5, notes: '跨越超美的古宇利大橋，果凍海水、心形岩拍照。', isMeal: false },
+          { time: '18:05', title: '古宇利海洋塔 (Sunset)', duration: 60, startLat: coords.kouri_tower[0], startLng: coords.kouri_tower[1], endLat: coords.airbnb[0], endLng: coords.airbnb[1], distance: 65, driveTime: 70, notes: '搭乘無人電動車登塔，360度俯瞰翡翠綠海洋。傍晚開車長途返回北谷。', isMeal: false },
+          { time: '20:15', title: '北谷燒肉/晚餐 [Meal]', duration: 120, notes: '安排熱辣燒肉大餐慶祝。', isMeal: true }
+        ]
+      },
+      6: {
+        date: '27/6 (六) Day 6',
+        events: [
+          { time: '08:00', title: '從 Airbnb 出發', duration: 0, startLat: coords.airbnb[0], startLng: coords.airbnb[1], endLat: coords.atv[0], endLng: coords.atv[1], distance: 45, driveTime: 50, notes: '往北部名護進行越野狂飆。', isMeal: false },
+          { time: '10:00', title: 'ATV 森林越野車 (名護店)', duration: 90, startLat: coords.atv[0], startLng: coords.atv[1], endLat: coords.pineapple[0], endLng: coords.pineapple[1], distance: 8, driveTime: 15, notes: '預約越野車冒險，深入沖繩森林山路！預訂：https://zh-cht.activityjapan.com/publish/plan/52295', isMeal: false },
+          { time: '11:45', title: '名護鳳梨園 (Pineapple Park)', duration: 75, startLat: coords.pineapple[0], startLng: coords.pineapple[1], endLat: coords.nago_museum[0], endLng: coords.nago_museum[1], distance: 4, driveTime: 10, notes: '乘坐可愛鳳梨車，品蹟香甜鳳梨冰沙、蛋糕。', isMeal: false },
+          { time: '13:10', title: '名護博物館', duration: 60, startLat: coords.nago_museum[0], startLng: coords.nago_museum[1], endLat: coords.airbnb[0], endLng: coords.airbnb[1], distance: 38, driveTime: 45, notes: '了解名護傳統捕鯨與本地生活歷史。隨後往南返航。', isMeal: false },
+          { time: '14:30', title: '海灘水上活動 (Water Activity) / 自由安排', duration: 120, notes: '香蕉船、獨木舟體驗或回到北谷沙灘。', isMeal: false },
+          { time: '17:00', title: 'Round 1 室內運動遊樂場 (宜野灣)', duration: 150, startLat: coords.round1[0], startLng: coords.round1[1], endLat: coords.airbnb[0], endLng: coords.airbnb[1], distance: 5, driveTime: 15, notes: '保齡球、電玩、各種運動競賽玩到過癮！', isMeal: false }
+        ]
+      },
+      7: {
+        date: '28/6 (日) Day 7',
+        events: [
+          { time: '08:00', title: '從 Airbnb 出發', duration: 0, startLat: coords.airbnb[0], startLng: coords.airbnb[1], endLat: coords.minatogawa[0], endLng: coords.minatogawa[1], distance: 11, driveTime: 25, notes: '今日以都市人文購物為主。', isMeal: false },
+          { time: '08:25', title: '港川外人住宅區 (香水與咖啡店)', duration: 155, startLat: coords.minatogawa[0], startLng: coords.minatogawa[1], endLat: coords.naminoue[0], endLng: coords.naminoue[1], distance: 8, driveTime: 20, notes: '超美文青聚落、彩色矮平房！拜訪 THE FLAVOR DESIGN® 香氛訂製店調製專屬沖繩香水。', isMeal: false },
+          { time: '11:20', title: '波上宮 (崖上神社)', duration: 55, startLat: coords.naminoue[0], startLng: coords.naminoue[1], endLat: coords.pref_museum[0], endLng: coords.pref_museum[1], distance: 4, driveTime: 15, notes: '建在斷崖上的神社，旁邊就是波之上海灘。', isMeal: false },
+          { time: '12:30', title: '沖繩縣立博物館・美術館 (那霸)', duration: 120, startLat: coords.pref_museum[0], startLng: coords.pref_museum[1], endLat: coords.kokusaidori[0], endLng: coords.kokusaidori[1], distance: 2, driveTime: 10, notes: '觀賞富有現代設計感的白色城堡建築，吸收琉球歷史。', isMeal: false },
+          { time: '14:40', title: '那霸國際通 (大購物與最後狂掃)', duration: 240, startLat: coords.kokusaidori[0], startLng: coords.kokusaidori[1], endLat: coords.airbnb[0], endLng: coords.airbnb[1], distance: 16, driveTime: 35, notes: '紀念品、伴手禮、鹽屋冰淇淋、驚安殿堂唐吉訶德。', isMeal: false },
+          { time: '19:00', title: '國際通大餐 / 居酒屋 [Meal]', duration: 120, notes: '推薦：阿古豬涮涮鍋、石垣牛或當地的三味線彈唱居酒屋。', isMeal: true }
+        ]
+      },
+      8: {
+        date: '29/6 (一) Day 8',
+        events: [
+          { time: '10:00', title: '退房 Check out Airbnb', duration: 30, startLat: coords.airbnb[0], startLng: coords.airbnb[1], endLat: coords.naha_airport[0], endLng: coords.naha_airport[1], distance: 16, driveTime: 45, notes: '執拾齊行李，離開北谷，開往那霸。', isMeal: false },
+          { time: '11:00', title: '那霸午餐與最後採買 [Meal]', duration: 90, notes: 'OTS 還車前作最後補貨，可在小祿站或那霸機場拉麵街進食。', isMeal: true },
+          { time: '13:00', title: 'OTS / 歸還 Rental Car', duration: 45, notes: '加滿油，前往 OTS 還車並搭接駁車往機場。', isMeal: false },
+          { time: '14:00', title: '那霸機場 check-in', duration: 130, notes: '購買機場免稅品。', isMeal: false },
+          { time: '16:10', title: 'HX659 OKA-HKG 航班回港', duration: 110, notes: '回家。', isMeal: false }
+        ]
+      }
+    };
+
+    const initialGourmets = [
+      { name: 'A&W 美式漢堡', checked: false, rating: 0, note: '超級麥根沙士！沖繩必吃連鎖' },
+      { name: '琉球之牛 (燒肉)', checked: false, rating: 0, note: '極品和牛，建議提早預約北谷店' },
+      { name: 'Blue Seal 冰淇淋', checked: false, rating: 0, note: '推鹽金楚糕、紅芋口味' },
+      { name: '阿古豬 (Agu豬火鍋)', checked: false, rating: 0, note: '肉質極其甘甜無腥味' },
+      { name: '沖繩沙翁 (Sata Andagi)', checked: false, rating: 0, note: '炸甜甜圈，酥脆可口' },
+      { name: '沖繩麵 EIBUN', checked: false, rating: 0, note: '現代風沖繩麵，極度熱門排隊店' },
+      { name: '首里蕎麥麵', checked: false, rating: 0, note: '傳統手打麵，湯頭非常清甜' },
+      { name: 'Steakhouse 88 / Jack\'s Steakhouse', checked: false, rating: 0, note: '美式老牌牛排館，宵夜必備' },
+      { name: '石垣牛燒肉', checked: false, rating: 0, note: '頂級石垣牛，滿口油香' },
+      { name: 'King Tacos (塔可飯)', checked: false, rating: 0, note: '沖繩靈魂美食 Taco Rice' }
+    ];
+
+    const initialPacking = [
+      { text: '護照正本 + 影印本備份', checked: true },
+      { text: '駕照 + 國際駕照正本', checked: true },
+      { text: '日圓現金 (部分餐館不收信用卡)', checked: false },
+      { text: '日本漫遊 SIM 卡 / eSIM 已設定', checked: false },
+      { text: '美式插座轉接器 / 行動電源', checked: false },
+      { text: '泳裝 / 泳鏡 / 浮潛防曬水母衣', checked: false },
+      { text: '防曬乳 (海洋友善品牌) + 太陽眼鏡', checked: false },
+      { text: '毛巾 / 防水袋 (玩水必備)', checked: false },
+      { text: '預訂證明與憑證 (KKday / Klook / 住宿)', checked: false }
+    ];
+
+    // --- APPLICATION VARIABLES (GLOBAL) ---
+    window.tripData = defaultTripData;
+    window.gourmets = initialGourmets;
+    window.packing = initialPacking;
+    window.expenses = [];
+    window.groupMembers = ['阿德', 'Benny', 'Chris', 'David'];
+    window.currentNickName = localStorage.getItem('trip_nickname') || '阿德';
+    window.currentDay = 1;
+
+    // Cloud Hooks (will be bound by the async module script if it loads)
+    window.onCloudSaveTrigger = null; 
+
+    // --- INSTANT RENDER & OFFLINE ENGINE ---
+    // This executes immediately and ensures the page is NEVER blank
+    function loadAndRenderLocalData() {
+      // Load local cache if available
+      window.tripData = JSON.parse(localStorage.getItem('okinawa_trip_data')) || defaultTripData;
+      window.gourmets = JSON.parse(localStorage.getItem('okinawa_gourmets')) || initialGourmets;
+      window.packing = JSON.parse(localStorage.getItem('okinawa_packing')) || initialPacking;
+      window.expenses = JSON.parse(localStorage.getItem('okinawa_expenses')) || [];
+      window.groupMembers = JSON.parse(localStorage.getItem('okinawa_members')) || ['阿德', 'Benny', 'Chris', 'David'];
+      
+      if (!window.groupMembers.includes(window.currentNickName)) {
+        window.currentNickName = window.groupMembers[0] || '阿德';
+      }
+
+      // Sync settings Display
+      updateIdentityUi();
+      renderTabs();
+      renderTimeline();
+      renderGourmets();
+      renderPacking();
+      renderExpenses();
+      renderSettingsMembers();
+      
+      if (map) {
+        map.invalidateSize();
+        updateMapRoute();
+      }
+    }
+
+    // --- APP SELF-DOWNLOAD ARCHITECTURE ---
+    window.downloadSelfHtml = function() {
+      // Save current state locally first
+      saveStateLocally();
+      
+      const clonedHtml = document.documentElement.outerHTML;
+      const blob = new Blob([clonedHtml], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'okinawa_trip_gadget.html';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      triggerCloudNotify("主體 App 已離線打包下載完成！");
+    };
+
+    function saveStateLocally() {
+      localStorage.setItem('okinawa_trip_data', JSON.stringify(window.tripData));
+      localStorage.setItem('okinawa_gourmets', JSON.stringify(window.gourmets));
+      localStorage.setItem('okinawa_packing', JSON.stringify(window.packing));
+      localStorage.setItem('okinawa_expenses', JSON.stringify(window.expenses));
+      localStorage.setItem('okinawa_members', JSON.stringify(window.groupMembers));
+      localStorage.setItem('trip_nickname', window.currentNickName);
+    }
+
+    // This handles local saves and safely delegates cloud pushes without breaking offline
+    window.saveStateAndSync = function(actionDescription = '修改') {
+      saveStateLocally();
+      if (typeof window.onCloudSaveTrigger === 'function') {
+        window.onCloudSaveTrigger(actionDescription);
+      } else {
+        triggerCloudNotify(`變更已儲存至本地空間`);
+      }
+    };
+
+    // --- TAB SWITCHER (SPA ROUTER) ---
+    window.switchTab = function(tabId) {
+      document.querySelectorAll('.tab-content').forEach(section => {
+        section.classList.remove('active');
+      });
+      
+      // Deactivate all bottom nav buttons
+      document.querySelectorAll('.mobile-nav-btn').forEach(btn => {
+        // Special case for Itinerary FAB
+        if (btn.id === 'mobile-nav-itinerary') {
+          // Keep FAB styles but reset scales if inactive
+          btn.classList.remove('rotate-6');
+        } else {
+          btn.classList.remove('text-okinawa-500');
+          btn.classList.add('text-slate-400');
+        }
+      });
+
+      // Show Selected Section
+      const targetSection = document.getElementById(`tab-${tabId}`);
+      if (targetSection) {
+        targetSection.classList.add('active');
+      }
+
+      // Activate corresponding bottom button
+      const activeBtn = document.getElementById(`mobile-nav-${tabId}`);
+      if (activeBtn) {
+        if (tabId === 'itinerary') {
+          activeBtn.classList.add('rotate-6');
+        } else {
+          activeBtn.classList.add('text-okinawa-500');
+          activeBtn.classList.remove('text-slate-400');
+        }
+      }
+
+      // Force Leaflet recalculation when returning to map
+      if (tabId === 'itinerary' && map) {
+        setTimeout(() => {
+          map.invalidateSize();
+          updateMapRoute();
+        }, 120);
+      }
+      
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    // --- INITIAL RENDER EXECUTION ---
+    let map, routeLine;
+    let markers = [];
+
+    window.initStandaloneApp = function() {
+      // Initialize Map instantly
+      map = L.map('map').setView([26.3500, 127.8000], 10);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap'
+      }).addTo(map);
+
+      loadAndRenderLocalData();
+      updateCountdown();
+      setInterval(updateCountdown, 60000);
+    };
+
+    // Safe Onload Handler
+    const existingOnload = window.onload;
+    window.onload = function() {
+      if (existingOnload) existingOnload();
+      initStandaloneApp();
+    };
+
+    // --- COUNTDOWN ENGINE ---
+    function updateCountdown() {
+      const targetDate = new Date('2026-06-22T09:05:00');
+      const now = new Date();
+      const difference = targetDate - now;
+      const countdownText = document.getElementById('countdown-text');
+      
+      if (difference <= 0) {
+        countdownText.innerHTML = "旅行進行中！🏝️🏳️‍🌈";
+        return;
+      }
+
+      const days = Math.floor(difference / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      countdownText.innerHTML = `✈️ 倒數 ${days}日 ${hours}小時`;
+    }
+
+    // --- LEAFLET ROUTING ENGINE ---
+    function updateMapRoute() {
+      markers.forEach(m => map.removeLayer(m));
+      markers = [];
+      if (routeLine) map.removeLayer(routeLine);
+
+      const dayEvents = window.tripData[window.currentDay]?.events || [];
+      const pathPoints = [];
+      let totalDistance = 0;
+      let totalDriveTime = 0;
+
+      dayEvents.forEach((ev, idx) => {
+        if (ev.distance) totalDistance += Number(ev.distance);
+        if (ev.driveTime) totalDriveTime += Number(ev.driveTime);
+
+        if (ev.endLat && ev.endLng) {
+          const latlng = [ev.endLat, ev.endLng];
+          pathPoints.push(latlng);
+
+          const icon = L.divIcon({
+            html: `<div class="bg-gradient-to-tr from-okinawa-500 to-pink-500 text-white w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs shadow-md border-2 border-white">${idx + 1}</div>`,
+            className: '',
+            iconSize: [28, 28]
+          });
+
+          const m = L.marker(latlng, { icon: icon })
+            .bindPopup(`<strong class="text-okinawa-700 font-bold">${ev.title}</strong><br><span class="text-xs text-gray-500">${ev.time} (${ev.duration} 分)</span>`)
+            .addTo(map);
+          markers.push(m);
+        } else if (ev.startLat && ev.startLng) {
+          pathPoints.push([ev.startLat, ev.startLng]);
+        }
+      });
+
+      const routeStatsSpan = document.getElementById('route-stats');
+      if (totalDistance > 0) {
+        routeStatsSpan.innerHTML = `| 🚗 共 ${totalDistance.toFixed(1)} km · 約 ${totalDriveTime} 分鐘車程`;
+      } else {
+        routeStatsSpan.innerHTML = '';
+      }
+
+      if (pathPoints.length > 1) {
+        routeLine = L.polyline(pathPoints, {
+          color: '#0ea5e9',
+          weight: 4,
+          opacity: 0.8,
+          dashArray: '5, 8'
+        }).addTo(map);
+
+        map.fitBounds(routeLine.getBounds(), { padding: [40, 40] });
+      } else if (pathPoints.length === 1) {
+        map.setView(pathPoints[0], 11);
+      }
+    }
+
+    window.zoomToDayBounds = function() {
+      if (routeLine) map.fitBounds(routeLine.getBounds(), { padding: [30, 30] });
+    };
+
+    // --- TIMELINE RENDERING ---
+    function renderTabs() {
+      const container = document.getElementById('day-tabs-container');
+      if (!container) return;
+      container.innerHTML = '';
+
+      Object.keys(window.tripData).forEach(day => {
+        const dNum = Number(day);
+        const isActive = dNum === window.currentDay;
+        const btn = document.createElement('button');
+        btn.onclick = () => selectDay(dNum);
+        btn.className = `px-4 py-2 rounded-xl text-xs font-black transition-all flex flex-col items-center ${
+          isActive 
+            ? 'bg-gradient-to-tr from-okinawa-500 to-pink-500 text-white shadow-md scale-105' 
+            : 'bg-gray-100 hover:bg-gray-200 text-slate-600'
+        }`;
+        
+        btn.innerHTML = `
+          <span>DAY ${dNum}</span>
+          <span class="text-[9px] opacity-80 font-medium">${window.tripData[day].date.split(' ')[0]}</span>
+        `;
+        container.appendChild(btn);
+      });
+    }
+
+    function selectDay(dayNum) {
+      window.currentDay = dayNum;
+      renderTabs();
+      renderTimeline();
+      updateMapRoute();
+    }
+
+    function renderTimeline() {
+      const titleEl = document.getElementById('schedule-title');
+      if (titleEl) {
+        titleEl.innerHTML = `<i class="fa-solid fa-calendar-alt text-pink-400"></i> ${window.tripData[window.currentDay]?.date || ''}`;
+      }
+
+      const timelineList = document.getElementById('timeline-list');
+      if (!timelineList) return;
+      timelineList.innerHTML = '';
+
+      const dayEvents = window.tripData[window.currentDay]?.events || [];
+
+      if (dayEvents.length === 0) {
+        timelineList.innerHTML = `
+          <div class="text-center py-8 text-gray-400">
+            <i class="fa-regular fa-calendar-minus text-4xl mb-2"></i>
+            <p class="text-xs">今天還沒有任何行程項目。</p>
+          </div>
+        `;
+        return;
+      }
+
+      dayEvents.forEach((ev, idx) => {
+        const item = document.createElement('div');
+        item.className = "relative pl-6 pb-2 border-l-2 border-slate-100 last:border-0 last:pb-0 group";
+        const dotBg = ev.isMeal ? 'bg-rose-500 ring-rose-100' : 'bg-okinawa-500 ring-okinawa-100';
+
+        let drivingHtml = '';
+        if (ev.distance || ev.driveTime) {
+          drivingHtml = `
+            <div class="flex items-center space-x-2 my-1.5 py-1 px-3 bg-slate-100/70 border border-slate-200/40 rounded-lg text-[11px] text-slate-600 font-bold max-w-fit shadow-xs">
+              <i class="fa-solid fa-car-side text-okinawa-500"></i>
+              <span>自駕開車：${ev.distance} 公里 (${ev.driveTime} 分鐘)</span>
+            </div>
+          `;
+        }
+
+        item.innerHTML = `
+          <div class="absolute -left-[7px] top-1.5 w-3 h-3 rounded-full ${dotBg} ring-4 transition group-hover:scale-125"></div>
+          <div class="space-y-1">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center space-x-2">
+                <span class="text-sm font-black text-slate-800 bg-slate-100 px-2 py-0.5 rounded-md">${ev.time}</span>
+                <h4 class="text-sm font-black text-slate-900 flex items-center gap-1.5">
+                  ${ev.isMeal ? '<i class="fa-solid fa-utensils text-rose-500 text-xs"></i>' : ''}
+                  ${ev.title}
+                </h4>
+                ${ev.duration ? `<span class="text-[10px] text-gray-400 font-bold">(${ev.duration} 分)</span>` : ''}
+              </div>
+              <div class="opacity-30 group-hover:opacity-100 flex items-center space-x-2 transition">
+                <button onclick="editEvent(${idx})" class="text-xs text-indigo-600 hover:text-indigo-800 p-1">
+                  <i class="fa-solid fa-pen-to-square"></i>
+                </button>
+                <button onclick="deleteEvent(${idx})" class="text-xs text-red-500 hover:text-red-700 p-1">
+                  <i class="fa-solid fa-trash"></i>
+                </button>
+              </div>
+            </div>
+            ${drivingHtml}
+            ${ev.notes ? `<p class="text-xs text-gray-500 leading-relaxed font-medium bg-gray-50/50 p-2 rounded-lg border border-gray-100/50">${linkify(ev.notes)}</p>` : ''}
+          </div>
+        `;
+        timelineList.appendChild(item);
+      });
+    }
+
+    function linkify(text) {
+      const urlPattern = /(\b(https?|ftp|file):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/ig;
+      return text.replace(urlPattern, '<a href="$1" target="_blank" class="text-okinawa-600 underline font-semibold break-all hover:text-okinawa-800"><i class="fa-solid fa-link text-[10px] mr-0.5"></i>點此開啟網址</a>');
+    }
+
+    // --- TIMELINE ACTIONS ---
+    window.openAddEventModal = function() {
+      document.getElementById('modal-title').innerText = "新增行程項目";
+      document.getElementById('event-form').reset();
+      document.getElementById('modal-event-day').value = window.currentDay;
+      document.getElementById('modal-event-index').value = "";
+      document.getElementById('event-modal').classList.remove('hidden');
+    };
+
+    window.editEvent = function(index) {
+      const ev = window.tripData[window.currentDay].events[index];
+      document.getElementById('modal-title').innerText = "編輯行程項目";
+      document.getElementById('modal-event-day').value = window.currentDay;
+      document.getElementById('modal-event-index').value = index;
+
+      document.getElementById('modal-event-title').value = ev.title;
+      document.getElementById('modal-event-time').value = ev.time;
+      document.getElementById('modal-event-duration').value = ev.duration || 0;
+      document.getElementById('modal-event-distance').value = ev.distance || '';
+      document.getElementById('modal-event-drive-time').value = ev.driveTime || '';
+      document.getElementById('modal-event-lat').value = ev.endLat || '';
+      document.getElementById('modal-event-lng').value = ev.endLng || '';
+      document.getElementById('modal-event-notes').value = ev.notes || '';
+
+      document.getElementById('event-modal').classList.remove('hidden');
+    };
+
+    window.deleteEvent = function(index) {
+      const isConfirmed = confirm("確定要將這項行程從所有人的手機中刪除嗎？");
+      if (isConfirmed) {
+        window.tripData[window.currentDay].events.splice(index, 1);
+        window.saveStateAndSync('刪除了行程');
+        renderTimeline();
+        updateMapRoute();
+      }
+    };
+
+    window.closeEventModal = function() {
+      document.getElementById('event-modal').classList.add('hidden');
+    };
+
+    window.saveEvent = function(e) {
+      e.preventDefault();
+
+      const day = document.getElementById('modal-event-day').value;
+      const indexStr = document.getElementById('modal-event-index').value;
+
+      const title = document.getElementById('modal-event-title').value;
+      const time = document.getElementById('modal-event-time').value;
+      const duration = Number(document.getElementById('modal-event-duration').value);
+      const distance = document.getElementById('modal-event-distance').value ? Number(document.getElementById('modal-event-distance').value) : null;
+      const driveTime = document.getElementById('modal-event-drive-time').value ? Number(document.getElementById('modal-event-drive-time').value) : null;
+      const endLat = document.getElementById('modal-event-lat').value ? Number(document.getElementById('modal-event-lat').value) : null;
+      const endLng = document.getElementById('modal-event-lng').value ? Number(document.getElementById('modal-event-lng').value) : null;
+      const notes = document.getElementById('modal-event-notes').value;
+
+      const isMeal = title.toLowerCase().includes('meal') || title.includes('食') || title.includes('吃') || title.includes('餐') || title.includes('燒肉');
+
+      const newEvent = { time, title, duration, isMeal, notes };
+
+      if (distance) newEvent.distance = distance;
+      if (driveTime) newEvent.driveTime = driveTime;
+      if (endLat) newEvent.endLat = endLat;
+      if (endLng) newEvent.endLng = endLng;
+
+      if ((distance || driveTime) && (!newEvent.startLat)) {
+        newEvent.startLat = coords.airbnb[0];
+        newEvent.startLng = coords.airbnb[1];
+      }
+
+      if (indexStr === "") {
+        window.tripData[day].events.push(newEvent);
+      } else {
+        const idx = Number(indexStr);
+        const oldEv = window.tripData[day].events[idx];
+        if (oldEv.startLat && !newEvent.startLat) newEvent.startLat = oldEv.startLat;
+        if (oldEv.startLng && !newEvent.startLng) newEvent.startLng = oldEv.startLng;
+        window.tripData[day].events[idx] = newEvent;
+      }
+
+      window.tripData[day].events.sort((a, b) => a.time.localeCompare(b.time));
+
+      window.saveStateAndSync('新增/修改了行程');
+      closeEventModal();
+      renderTimeline();
+      updateMapRoute();
+    };
+
+    // --- EXPENSES BILL SPLITTER ---
+    function renderExpenses() {
+      const container = document.getElementById('expense-list-container');
+      if (!container) return;
+      container.innerHTML = '';
+
+      if (window.expenses.length === 0) {
+        container.innerHTML = `<p class="text-xs text-gray-400 text-center py-6">暫無共同開銷，點擊上方新增記帳！</p>`;
+        document.getElementById('total-expense-amount').innerText = 'HKD 0.00';
+        document.getElementById('settlements-container').innerHTML = `<p class="text-[11px] text-gray-400 italic">目前無分賬結算資訊</p>`;
+        return;
+      }
+
+      let total = 0;
+      window.expenses.forEach((exp, idx) => {
+        total += exp.amount;
+        const item = document.createElement('div');
+        item.className = "flex items-center justify-between text-xs py-2.5 px-3 bg-slate-50 rounded-xl border border-slate-100";
+        
+        item.innerHTML = `
+          <div class="space-y-0.5">
+            <span class="font-bold text-slate-800 block">${exp.desc}</span>
+            <span class="text-[10px] text-gray-400 font-medium">由 <strong>${exp.payer}</strong> 支付</span>
+          </div>
+          <div class="flex items-center space-x-2">
+            <span class="font-black text-amber-600">HKD ${exp.amount.toFixed(2)}</span>
+            <button onclick="deleteExpense(${idx})" class="text-red-400 hover:text-red-600 p-1 transition"><i class="fa-solid fa-circle-minus"></i></button>
+          </div>
+        `;
+        container.appendChild(item);
+      });
+
+      document.getElementById('total-expense-amount').innerText = `HKD ${total.toFixed(2)}`;
+      calculateSettlements(total);
+    }
+
+    window.openExpenseModal = function() {
+      updateExpenseModalSelectors();
+      document.getElementById('expense-form').reset();
+      document.getElementById('expense-modal').classList.remove('hidden');
+    };
+
+    window.closeExpenseModal = function() {
+      document.getElementById('expense-modal').classList.add('hidden');
+    };
+
+    window.saveExpense = function(e) {
+      e.preventDefault();
+      const desc = document.getElementById('expense-desc').value;
+      const amount = Number(document.getElementById('expense-amount').value);
+      const payer = document.getElementById('expense-payer').value;
+
+      window.expenses.push({ desc, amount, payer });
+      window.saveStateAndSync('記錄了一筆開銷');
+      closeExpenseModal();
+      renderExpenses();
+    };
+
+    window.deleteExpense = function(index) {
+      window.expenses.splice(index, 1);
+      window.saveStateAndSync('刪除了一筆開銷');
+      renderExpenses();
+    };
+
+    function calculateSettlements(total) {
+      const size = window.groupMembers.length;
+      if (size === 0) return;
+
+      const share = total / size;
+      let balances = {};
+      window.groupMembers.forEach(member => {
+        balances[member] = -share;
+      });
+
+      window.expenses.forEach(exp => {
+        const activePayer = window.groupMembers.includes(exp.payer) ? exp.payer : window.groupMembers[0];
+        if (activePayer) {
+          balances[activePayer] += exp.amount;
+        }
+      });
+
+      const settlementContainer = document.getElementById('settlements-container');
+      if (!settlementContainer) return;
+      settlementContainer.innerHTML = '';
+
+      let debtors = [];
+      let creditors = [];
+
+      window.groupMembers.forEach(member => {
+        const bal = balances[member];
+        if (bal < -0.01) {
+          debtors.push({ member, amount: -bal });
+        } else if (bal > 0.01) {
+          creditors.push({ member, amount: bal });
+        }
+      });
+
+      let i = 0, j = 0;
+      let settlements = [];
+
+      while (i < debtors.length && j < creditors.length) {
+        let debtor = debtors[i];
+        let creditor = creditors[j];
+
+        let minAmount = Math.min(debtor.amount, creditor.amount);
+        settlements.push({
+          from: debtor.member,
+          to: creditor.member,
+          amount: minAmount
+        });
+
+        debtor.amount -= minAmount;
+        creditor.amount -= minAmount;
+
+        if (debtor.amount < 0.01) i++;
+        if (creditor.amount < 0.01) j++;
+      }
+
+      if (settlements.length === 0) {
+        settlementContainer.innerHTML = `<p class="text-[11px] text-gray-400 italic">大家目前平均分攤費用，互不相欠！</p>`;
+        return;
+      }
+
+      settlements.forEach(set => {
+        const p = document.createElement('p');
+        p.className = "flex justify-between py-1 border-b border-dashed border-slate-200 last:border-b-0";
+        p.innerHTML = `
+          <span>🙋‍♂️ <strong>${set.from}</strong> 需付給 <strong>${set.to}</strong></span>
+          <span class="font-bold text-slate-800">HKD ${set.amount.toFixed(2)}</span>
+        `;
+        settlementContainer.appendChild(p);
+      });
+    }
+
+    // --- GOURMET SYSTEM ---
+    function renderGourmets() {
+      const container = document.getElementById('gourmet-container');
+      if (!container) return;
+      container.innerHTML = '';
+
+      window.gourmets.forEach((g, idx) => {
+        const item = document.createElement('div');
+        item.className = `p-3.5 rounded-2xl border transition flex flex-col space-y-2 ${g.checked ? 'bg-rose-50/40 border-rose-100' : 'bg-gray-50/50 border-gray-100 hover:bg-gray-50'}`;
+
+        let starsHtml = '';
+        for (let i = 1; i <= 5; i++) {
+          starsHtml += `
+            <button onclick="rateGourmet(${idx}, ${i})" class="text-sm transition focus:outline-none ${i <= g.rating ? 'text-amber-500 hover:scale-110' : 'text-slate-200 hover:scale-110'}">
+              <i class="fa-solid fa-star"></i>
+            </button>
+          `;
+        }
+
+        item.innerHTML = `
+          <div class="flex items-start justify-between">
+            <label class="flex items-start space-x-2.5 cursor-pointer flex-1">
+              <input type="checkbox" ${g.checked ? 'checked' : ''} onchange="toggleGourmet(${idx})" class="mt-1 w-4 h-4 rounded text-rose-500 accent-rose-500 focus:ring-rose-400">
+              <div class="space-y-0.5">
+                <span class="text-xs font-black ${g.checked ? 'line-through text-slate-400 font-medium' : 'text-slate-800'}">${g.name}</span>
+                <span class="text-[10px] text-slate-400 block leading-relaxed">${g.note}</span>
+              </div>
+            </label>
+            <div class="flex items-center space-x-1 pl-2">
+              ${starsHtml}
+            </div>
+          </div>
+        `;
+        container.appendChild(item);
+      });
+    }
+
+    window.openAddRestaurantModal = function() {
+      document.getElementById('restaurant-form').reset();
+      document.getElementById('restaurant-modal').classList.remove('hidden');
+    };
+
+    window.closeRestaurantModal = function() {
+      document.getElementById('restaurant-modal').classList.add('hidden');
+    };
+
+    window.saveCustomRestaurant = function(e) {
+      e.preventDefault();
+      const name = document.getElementById('restaurant-name').value.trim();
+      const note = document.getElementById('restaurant-note').value.trim();
+
+      if (!name) return;
+
+      window.gourmets.unshift({
+        name,
+        note: note || '自訂加入的美味據點',
+        checked: false,
+        rating: 0
+      });
+
+      window.saveStateAndSync('新增了餐廳');
+      closeRestaurantModal();
+      renderGourmets();
+    };
+
+    window.toggleGourmet = function(index) {
+      window.gourmets[index].checked = !window.gourmets[index].checked;
+      window.saveStateAndSync('勾選了美食項目');
+      renderGourmets();
+    };
+
+    window.rateGourmet = function(index, rating) {
+      window.gourmets[index].rating = rating;
+      if (rating > 0) window.gourmets[index].checked = true;
+      window.saveStateAndSync('給美食評了星級');
+      renderGourmets();
+    };
+
+    // --- PACKING清單 ---
+    function renderPacking() {
+      const container = document.getElementById('packing-list-container');
+      if (!container) return;
+      container.innerHTML = '';
+
+      let checkedCount = 0;
+      window.packing.forEach((item, idx) => {
+        if (item.checked) checkedCount++;
+
+        const div = document.createElement('div');
+        div.className = "flex items-center justify-between py-1.5 border-b border-gray-100 last:border-0";
+        div.innerHTML = `
+          <label class="flex items-center space-x-2.5 cursor-pointer text-xs w-full">
+            <input type="checkbox" ${item.checked ? 'checked' : ''} onchange="togglePacking(${idx})" class="w-4 h-4 accent-green-500 text-green-500">
+            <span class="${item.checked ? 'line-through text-gray-400 font-medium' : 'text-slate-700 font-black'}">${item.text}</span>
+          </label>
+        `;
+        container.appendChild(div);
+      });
+
+      const percent = window.packing.length > 0 ? Math.round((checkedCount / window.packing.length) * 100) : 0;
+      document.getElementById('packing-progress').innerText = `${percent}% 已準備`;
+    }
+
+    window.togglePacking = function(index) {
+      window.packing[index].checked = !window.packing[index].checked;
+      window.saveStateAndSync('變更了打包清單');
+      renderPacking();
+    };
+
+    // --- SYSTEM MEMBERS CONFIG ---
+    function updateIdentityUi() {
+      const nameDisplay = document.getElementById('identity-name-display');
+      const avatarDisplay = document.getElementById('identity-avatar-display');
+      const currentDisplayHeader = document.getElementById('current-user-display');
+      
+      nameDisplay.innerText = window.currentNickName;
+      currentDisplayHeader.innerText = `使用者: ${window.currentNickName}`;
+
+      const avatars = ['😎', '🦊', '🦁', '🐻', '🐼', '🐯', '🦄', '🐙'];
+      const index = window.groupMembers.indexOf(window.currentNickName);
+      avatarDisplay.innerText = avatars[index % avatars.length] || '👤';
+    }
+
+    window.setIdentity = function(name) {
+      window.currentNickName = name;
+      localStorage.setItem('trip_nickname', name);
+      updateIdentityUi();
+      document.getElementById('identity-modal').classList.add('hidden');
+      window.saveStateAndSync('變更了目前身份');
+    };
+
+    window.changeIdentity = function() {
+      renderIdentitySelectionModal();
+    };
+
+    function renderIdentitySelectionModal() {
+      const container = document.getElementById('identity-buttons-container');
+      if (!container) return;
+      container.innerHTML = '';
+
+      const colors = [
+        { bg: 'bg-sky-50 hover:bg-sky-100 border-sky-200 text-sky-700', avatar: '😎' },
+        { bg: 'bg-pink-50 hover:bg-pink-100 border-pink-200 text-pink-700', avatar: '🦊' },
+        { bg: 'bg-purple-50 hover:bg-purple-100 border-purple-200 text-purple-700', avatar: '🦁' },
+        { bg: 'bg-amber-50 hover:bg-amber-100 border-amber-200 text-amber-700', avatar: '🐻' },
+        { bg: 'bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-700', avatar: '🐼' },
+        { bg: 'bg-rose-50 hover:bg-rose-100 border-rose-200 text-rose-700', avatar: '🐙' }
+      ];
+
+      window.groupMembers.forEach((member, index) => {
+        const theme = colors[index % colors.length];
+        const btn = document.createElement('button');
+        btn.onclick = () => setIdentity(member);
+        btn.className = `${theme.bg} border font-bold py-3.5 px-3 rounded-2xl transition flex flex-col items-center gap-1 text-center`;
+        btn.innerHTML = `
+          <span class="text-2xl">${theme.avatar}</span>
+          <span class="text-xs break-all">${member}</span>
+        `;
+        container.appendChild(btn);
+      });
+
+      document.getElementById('identity-modal').classList.remove('hidden');
+    }
+
+    function renderSettingsMembers() {
+      const container = document.getElementById('members-list-container');
+      if (!container) return;
+      container.innerHTML = '';
+
+      window.groupMembers.forEach((member, index) => {
+        const div = document.createElement('div');
+        div.className = "flex items-center justify-between bg-slate-50 p-2.5 rounded-xl border border-slate-100 text-xs";
+        const isSelf = member === window.currentNickName;
+
+        div.innerHTML = `
+          <div class="flex items-center space-x-2">
+            <span class="bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-md text-[10px]">#${index + 1}</span>
+            <span class="font-black text-slate-800">${member} ${isSelf ? '<span class="text-pink-500 font-bold">(你)</span>' : ''}</span>
+          </div>
+          <button onclick="removeGroupMember(${index})" class="text-red-500 hover:text-red-700 px-2 py-1 transition" ${window.groupMembers.length <= 1 ? 'disabled style="opacity: 0.3;"' : ''}>
+            <i class="fa-solid fa-trash-can"></i>
+          </button>
+        `;
+        container.appendChild(div);
+      });
+
+      updateExpenseModalSelectors();
+    }
+
+    window.addNewMember = function() {
+      const input = document.getElementById('new-member-input');
+      const name = input.value.trim();
+      if (!name) return;
+
+      if (window.groupMembers.includes(name)) {
+        alert("該成員名字已存在！");
+        return;
+      }
+
+      window.groupMembers.push(name);
+      input.value = '';
+      window.saveStateAndSync('新增了團隊成員');
+      renderSettingsMembers();
+    };
+
+    window.removeGroupMember = function(index) {
+      if (window.groupMembers.length <= 1) {
+        alert("團隊最少必須保留一名成員！");
+        return;
+      }
+      const removedMember = window.groupMembers[index];
+      if (confirm(`確定要刪除團員 ${removedMember} 嗎？他的所有個人帳目會自動歸類到預設名單。`)) {
+        window.groupMembers.splice(index, 1);
+        
+        if (window.currentNickName === removedMember) {
+          window.currentNickName = window.groupMembers[0];
+          localStorage.setItem('trip_nickname', window.currentNickName);
+          updateIdentityUi();
+        }
+
+        window.saveStateAndSync('刪除了團員');
+        renderSettingsMembers();
+      }
+    };
+
+    function updateExpenseModalSelectors() {
+      const payerSelect = document.getElementById('expense-payer');
+      if (!payerSelect) return;
+      const oldVal = payerSelect.value;
+      payerSelect.innerHTML = '';
+
+      window.groupMembers.forEach(member => {
+        const opt = document.createElement('option');
+        opt.value = member;
+        opt.innerText = member;
+        payerSelect.appendChild(opt);
+      });
+
+      if (window.groupMembers.includes(oldVal)) {
+        payerSelect.value = oldVal;
+      }
+
+      document.querySelectorAll('.member-count-label').forEach(el => {
+        el.innerText = window.groupMembers.length;
+      });
+    }
+
+    // --- UI NOTIFICATION HELPER ---
+    function triggerCloudNotify(text) {
+      const banner = document.getElementById('cloud-notification');
+      const bannerText = document.getElementById('cloud-notification-text');
+      if (banner && bannerText) {
+        bannerText.innerText = text;
+        banner.classList.remove('hidden');
+        setTimeout(() => {
+          banner.classList.add('hidden');
+        }, 3500);
+      }
+    }
+  </script>
+
+  <!-- ========================================== -->
+  <!-- CLOUD SYNC MODULE (ASYNC BACKGROUND THREAD) -->
+  <!-- ========================================== -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // Detect environment configurations
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'okinawa-collaborative-trip-2026';
+    let firebaseConfig = null;
+    let db = null;
+    let auth = null;
+
+    try {
+      if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+        firebaseConfig = JSON.parse(__firebase_config);
+      }
+    } catch (e) {
+      console.log("Firebase environment is not initialized yet. Staying in Local Mode.");
+    }
+
+    if (firebaseConfig) {
+      try {
+        const app = initializeApp(firebaseConfig);
+        auth = getAuth(app);
+        db = getFirestore(app);
+
+        // Authenticate first (RULE 3)
+        const initAuth = async () => {
+          if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+            await signInWithCustomToken(auth, __initial_auth_token);
+          } else {
+            await signInAnonymously(auth);
+          }
+        };
+
+        onAuthStateChanged(auth, (user) => {
+          if (user) {
+            startFirestoreSync();
+          } else {
+            initAuth();
+          }
+        });
+      } catch (err) {
+        console.error("Firebase module setup crashed. Retaining offline standalone engines.", err);
+      }
+    }
+
+    // Cloud Listener
+    const docRef = () => doc(db, 'artifacts', appId, 'public', 'data', 'tripState', 'main');
+
+    function startFirestoreSync() {
+      const publicRef = docRef();
+      
+      onSnapshot(publicRef, (docSnap) => {
+        if (docSnap.exists()) {
+          const cloudData = docSnap.data();
+          
+          // Override global standalone states with cloud values
+          window.tripData = cloudData.tripData || window.tripData;
+          window.gourmets = cloudData.gourmets || window.gourmets;
+          window.packing = cloudData.packing || window.packing;
+          window.expenses = cloudData.expenses || window.expenses;
+          window.groupMembers = cloudData.groupMembers || window.groupMembers;
+
+          if (cloudData.lastModifiedBy && cloudData.lastModifiedBy !== window.currentNickName) {
+            triggerCloudNotify(`${cloudData.lastModifiedBy} 剛剛更新了沖繩行程數據！`);
+          }
+
+          // Trigger UI redraw dynamically
+          loadAndRenderLocalData();
+          updateSyncIndicator(true);
+        } else {
+          // Document doesn't exist, create it with our current local storage
+          saveStateToCloud('初始雲端資料庫');
+        }
+      }, (error) => {
+        console.error("Firestore synchronizer snapped out:", error);
+        updateSyncIndicator(false);
+      });
+    }
+
+    // Register Push Hook
+    window.onCloudSaveTrigger = function(actionDescription) {
+      saveStateToCloud(actionDescription);
+    };
+
+    async function saveStateToCloud(actionDescription = '修改') {
+      if (!db || !auth || !auth.currentUser) return;
+
+      triggerCloudNotify(`正在即時同步數據至雲端...`);
+      try {
+        await setDoc(docRef(), {
+          tripData: window.tripData,
+          gourmets: window.gourmets,
+          packing: window.packing,
+          expenses: window.expenses,
+          groupMembers: window.groupMembers,
+          lastModifiedBy: window.currentNickName || '匿名同伴',
+          lastModifiedTime: new Date().toLocaleTimeString()
+        });
+        updateSyncIndicator(true);
+      } catch (e) {
+        console.error("Cloud synchronizer push failed:", e);
+        updateSyncIndicator(false);
+      }
+    }
+
+    function updateSyncIndicator(isOnline) {
+      const indicator = document.getElementById('sync-badge');
+      const text = document.getElementById('sync-status-text');
+      if (indicator && text) {
+        if (isOnline) {
+          indicator.className = "bg-emerald-50 text-emerald-600 text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 border border-emerald-100";
+          text.innerText = "雲端同步中";
+        } else {
+          indicator.className = "bg-rose-50 text-rose-600 text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 border border-rose-100 animate-pulse";
+          text.innerText = "本機離線儲存";
+        }
+      }
+    }
+  </script>
+</body>
+</html>
