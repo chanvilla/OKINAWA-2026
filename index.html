@@ -699,7 +699,7 @@
   console.log("✅ 本地資料載入完成");
 }
 
-   function saveStateLocally() {
+  function saveStateLocally() {
   localStorage.setItem('okinawa_trip_data', JSON.stringify(window.tripData));
   localStorage.setItem('okinawa_gourmets', JSON.stringify(window.gourmets));
   localStorage.setItem('okinawa_packing', JSON.stringify(window.packing));
@@ -707,13 +707,11 @@
   localStorage.setItem('okinawa_members', JSON.stringify(window.groupMembers));
   localStorage.setItem('trip_nickname', window.currentNickName);
   
-  // 修正：使用可靠的 ISO 字串
   const now = new Date().toISOString();
   localStorage.setItem('lastLocalSync', now);
   
-  console.log("💾 本地儲存完成，時間戳:", now);
+  console.log("💾 本地已儲存，時間戳:", now);
 }
-
     // This handles local saves and safely delegates cloud pushes without breaking offline
     window.saveStateAndSync = function(actionDescription = '修改') {
       saveStateLocally();
@@ -1456,7 +1454,7 @@
   </script>
 
   <!-- ========================================== -->
-<!-- FIXED CLOUD SYNC MODULE -->
+<!-- FINAL FIXED CLOUD SYNC MODULE -->
 <!-- ========================================== -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
@@ -1493,7 +1491,7 @@
 
       onAuthStateChanged(auth, (user) => {
         if (user) {
-          console.log("👤 用戶已登入:", user.uid);
+          console.log("👤 用戶已登入，UID:", user.uid);
           startFirestoreSync();
         } else {
           initAuth();
@@ -1506,60 +1504,51 @@
 
   const docRef = () => doc(db, 'artifacts', 'okinawa-collaborative-trip-2026', 'public', 'data', 'tripState', 'main');
 
- function startFirestoreSync() {
-  if (!db) return;
-  if (window.firestoreUnsubscribe) window.firestoreUnsubscribe();
+  function startFirestoreSync() {
+    if (!db) return;
+    if (window.firestoreUnsubscribe) window.firestoreUnsubscribe();
 
-  console.log("📡 開始監聽雲端資料...");
+    console.log("📡 開始監聽雲端資料...");
 
-  const unsubscribe = onSnapshot(docRef(), (docSnap) => {
-    if (docSnap.exists()) {
-      const cloudData = docSnap.data();
-      
-      const cloudTimeStr = cloudData.lastModifiedTime;
-      const localTimeStr = localStorage.getItem('lastLocalSync');
-      
-      const cloudTime = cloudTimeStr ? new Date(cloudTimeStr) : new Date(0);
-      const localTime = localTimeStr ? new Date(localTimeStr) : new Date(0);
+    const unsubscribe = onSnapshot(docRef(), (docSnap) => {
+      if (docSnap.exists()) {
+        const cloudData = docSnap.data();
+        const cloudTimeStr = cloudData.lastModifiedTime;
+        const localTimeStr = localStorage.getItem('lastLocalSync');
 
-      console.log(`⏰ 雲端時間: ${cloudTimeStr} | 本地時間: ${localTimeStr}`);
+        const cloudTime = cloudTimeStr ? new Date(cloudTimeStr) : new Date(0);
+        const localTime = localTimeStr ? new Date(localTimeStr) : new Date(0);
 
-      // 如果雲端較新，或本地時間無效，就同步
-      if (isNaN(localTime.getTime()) || cloudTime > localTime) {
-        console.log("🔄 偵測到雲端更新，正在同步...");
-        
-        window.tripData = cloudData.tripData || window.tripData;
-        window.gourmets = cloudData.gourmets || window.gourmets;
-        window.packing = cloudData.packing || window.packing;
-        window.expenses = cloudData.expenses || window.expenses;
-        window.groupMembers = cloudData.groupMembers || window.groupMembers;
+        console.log(`⏰ 雲端: ${cloudTimeStr} | 本地: ${localTimeStr}`);
 
-        if (typeof loadAndRenderLocalData === 'function') {
-          loadAndRenderLocalData();
+        if (isNaN(localTime.getTime()) || cloudTime > localTime) {
+          console.log("🔄 接收到雲端更新，正在套用...");
+          window.tripData = cloudData.tripData || window.tripData;
+          window.gourmets = cloudData.gourmets || window.gourmets;
+          window.packing = cloudData.packing || window.packing;
+          window.expenses = cloudData.expenses || window.expenses;
+          window.groupMembers = cloudData.groupMembers || window.groupMembers;
+
+          if (typeof loadAndRenderLocalData === "function") loadAndRenderLocalData();
+          if (typeof triggerCloudNotify === "function") {
+            triggerCloudNotify(`${cloudData.lastModifiedBy || '同伴'} 剛更新了行程`);
+          }
+        } else {
+          console.log("✅ 已是最新版本");
         }
-        if (typeof triggerCloudNotify === 'function') {
-          triggerCloudNotify(`${cloudData.lastModifiedBy || '同伴'} 剛更新了行程`);
-        }
-      } else {
-        console.log("✅ 已是最新版本，無需同步");
       }
-    }
-  }, (error) => {
-    console.error("❌ Firestore 監聽錯誤:", error);
-    if (typeof triggerCloudNotify === 'function') {
-      triggerCloudNotify("雲端同步暫時中斷 (離線模式)");
-    }
-  });
+    }, (error) => {
+      console.error("❌ Firestore 監聽錯誤:", error);
+      if (typeof triggerCloudNotify === "function") triggerCloudNotify("雲端同步中斷 (離線)");
+    });
 
-  window.firestoreUnsubscribe = unsubscribe;
-}
+    window.firestoreUnsubscribe = unsubscribe;
+  }
 
   window.onCloudSaveTrigger = async function(actionDescription = '修改') {
     if (!db || !auth?.currentUser) {
-      console.warn("⚠️ 雲端未連線，僅存本地");
-      if (typeof triggerCloudNotify === 'function') {
-        triggerCloudNotify("已儲存至本地 (雲端未連線)");
-      }
+      console.warn("⚠️ 雲端未連線");
+      if (typeof triggerCloudNotify === "function") triggerCloudNotify("已儲存至本地 (雲端未連線)");
       return;
     }
 
@@ -1575,22 +1564,19 @@
         version: Date.now()
       }, { merge: true });
 
-      console.log("✅ 成功上傳至雲端");
-      if (typeof triggerCloudNotify === 'function') {
+      console.log("✅ 上傳雲端成功");
+      if (typeof triggerCloudNotify === "function") {
         triggerCloudNotify(`✅ 已同步至雲端 (${actionDescription})`);
       }
     } catch (e) {
-      console.error("❌ 雲端同步失敗:", e);
-      if (typeof triggerCloudNotify === 'function') {
-        triggerCloudNotify("雲端同步失敗，已儲存至本地");
-      }
+      console.error("❌ 上傳失敗:", e);
+      if (typeof triggerCloudNotify === "function") triggerCloudNotify("雲端同步失敗，已存本地");
     }
   };
 
-  // 啟動 Firebase
+  // 啟動
   initFirebase();
 
-  // 清理
   window.addEventListener('beforeunload', () => {
     if (window.firestoreUnsubscribe) window.firestoreUnsubscribe();
   });
