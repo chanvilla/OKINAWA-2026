@@ -14,25 +14,6 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <script>
-    // 1. 這裡是你原本的 Firebase 初始化程式碼 (firebase.initializeApp...)
-  // 2. 這裡是你原本設定 db 的變數 (const db = firebase.firestore();)
-
-  // --- 在這裡放入同步監聽程式碼 ---
-  function startSync() {
-    db.collection('okinawa_trip').onSnapshot((snapshot) => {
-      // 每次資料庫有變動，這段內容會執行
-      snapshot.docChanges().forEach((change) => {
-        if (change.type === "added" || change.type === "modified") {
-          console.log("資料有更新，準備重新整理頁面顯示...");
-          
-          // 重要：這裡要呼叫你原本用來顯示資料的函數
-          // 例如：renderData(change.doc.data());
-        }
-      });
-    });
-  }
-
-  // 執行監聽函數
     tailwind.config = {
       theme: {
         extend: {
@@ -687,60 +668,41 @@
 
     // --- INSTANT RENDER & OFFLINE ENGINE ---
     // This executes immediately and ensures the page is NEVER blank
-    function loadAndRenderLocalData() {
-      // Load local cache if available
-      window.tripData = JSON.parse(localStorage.getItem('okinawa_trip_data')) || defaultTripData;
-      window.gourmets = JSON.parse(localStorage.getItem('okinawa_gourmets')) || initialGourmets;
-      window.packing = JSON.parse(localStorage.getItem('okinawa_packing')) || initialPacking;
-      window.expenses = JSON.parse(localStorage.getItem('okinawa_expenses')) || [];
-      window.groupMembers = JSON.parse(localStorage.getItem('okinawa_members')) || ['阿德', 'Benny', 'Chris', 'David'];
-      
-      if (!window.groupMembers.includes(window.currentNickName)) {
-        window.currentNickName = window.groupMembers[0] || '阿德';
-      }
+ function loadAndRenderLocalData() {
+  window.tripData = JSON.parse(localStorage.getItem('okinawa_trip_data')) || defaultTripData;
+  window.gourmets = JSON.parse(localStorage.getItem('okinawa_gourmets')) || initialGourmets;
+  window.packing = JSON.parse(localStorage.getItem('okinawa_packing')) || initialPacking;
+  window.expenses = JSON.parse(localStorage.getItem('okinawa_expenses')) || [];
+  window.groupMembers = JSON.parse(localStorage.getItem('okinawa_members')) || ['阿德', 'Benny', 'Chris', 'David'];
 
-      // Sync settings Display
-      updateIdentityUi();
-      renderTabs();
-      renderTimeline();
-      renderGourmets();
-      renderPacking();
-      renderExpenses();
-      renderSettingsMembers();
-      
-      if (map) {
-        map.invalidateSize();
-        updateMapRoute();
-      }
-    }
+  if (!window.groupMembers.includes(window.currentNickName)) {
+    window.currentNickName = window.groupMembers[0] || '阿德';
+  }
 
-    // --- APP SELF-DOWNLOAD ARCHITECTURE ---
-    window.downloadSelfHtml = function() {
-      // Save current state locally first
-      saveStateLocally();
-      
-      const clonedHtml = document.documentElement.outerHTML;
-      const blob = new Blob([clonedHtml], { type: 'text/html;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'okinawa_trip_gadget.html';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+  updateIdentityUi();
+  renderTabs();
+  renderTimeline();
+  renderGourmets();
+  renderPacking();
+  renderExpenses();
+  renderSettingsMembers();
 
-      triggerCloudNotify("主體 App 已離線打包下載完成！");
-    };
-
-    function saveStateLocally() {
-      localStorage.setItem('okinawa_trip_data', JSON.stringify(window.tripData));
-      localStorage.setItem('okinawa_gourmets', JSON.stringify(window.gourmets));
-      localStorage.setItem('okinawa_packing', JSON.stringify(window.packing));
-      localStorage.setItem('okinawa_expenses', JSON.stringify(window.expenses));
-      localStorage.setItem('okinawa_members', JSON.stringify(window.groupMembers));
-      localStorage.setItem('trip_nickname', window.currentNickName);
-    }
+  if (map) {
+    setTimeout(() => {
+      map.invalidateSize();
+      updateMapRoute();
+    }, 150);
+  }
+}
+   function saveStateLocally() {
+  localStorage.setItem('okinawa_trip_data', JSON.stringify(window.tripData));
+  localStorage.setItem('okinawa_gourmets', JSON.stringify(window.gourmets));
+  localStorage.setItem('okinawa_packing', JSON.stringify(window.packing));
+  localStorage.setItem('okinawa_expenses', JSON.stringify(window.expenses));
+  localStorage.setItem('okinawa_members', JSON.stringify(window.groupMembers));
+  localStorage.setItem('trip_nickname', window.currentNickName);
+  localStorage.setItem('lastLocalSync', new Date().toISOString());
+}
 
     // This handles local saves and safely delegates cloud pushes without breaking offline
     window.saveStateAndSync = function(actionDescription = '修改') {
@@ -1482,116 +1444,111 @@
       }
     }
   </script>
+<!-- ========================================== -->
+<!-- IMPROVED CLOUD SYNC MODULE -->
+<!-- ========================================== -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+  import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+  import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-  <!-- ========================================== -->
-  <!-- CLOUD SYNC MODULE (ASYNC BACKGROUND THREAD) -->
-  <!-- ========================================== -->
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+  const firebaseConfig = {
+    apiKey: "AIzaSyDBh4an45STG345pwH34fAJwQJWJ5f2Htc",
+    authDomain: "okinawa-2026-15c5b.firebaseapp.com",
+    projectId: "okinawa-2026-15c5b",
+    storageBucket: "okinawa-2026-15c5b.firebasestorage.app",
+    messagingSenderId: "355204834799",
+    appId: "1:355204834799:web:17ecd2eb7975e2de70c21a"
+  };
 
-    // Detect environment configurations
-    // 確保 Firebase 已經載入
-const firebaseConfig = {apiKey: "AIzaSyDBh4an45STG345pwH34fAJwQJWJ5f2Htc",
-  authDomain: "okinawa-2026-15c5b.firebaseapp.com",
-  projectId: "okinawa-2026-15c5b",
-  storageBucket: "okinawa-2026-15c5b.firebasestorage.app",
-  messagingSenderId: "355204834799",
-  appId: "1:355204834799:web:17ecd2eb7975e2de70c21a"
-                       };
+  let app, auth, db;
 
-// 初始化 App
-if (!firebase.apps.length) {
-    firebase.initializeApp(firebaseConfig);
-}
+  try {
+    app = initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    db = getFirestore(app);
 
-const db = firebase.firestore();
-const auth = firebase.auth();
+    const initAuth = async () => {
+      try {
+        await signInAnonymously(auth);
+      } catch (e) {
+        console.warn("Anonymous auth failed");
+      }
+    };
 
-// 確保執行匿名登入，這對使用 Firestore 的安全性規則非常重要
-auth.signInAnonymously()
-    .then(() => {
-        console.log("Firebase 初始化成功，已匿名登入");
-        // 在這裡開始你的讀寫操作
-    })
-    .catch((error) => {
-        console.error("登入失敗:", error);
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        startFirestoreSync();
+      } else {
+        initAuth();
+      }
     });
-   
-    // Cloud Listener
-    const docRef = () => doc(db, 'artifacts', appId, 'public', 'data', 'tripState', 'main');
+  } catch (err) {
+    console.error("Firebase init failed", err);
+  }
 
-    function startFirestoreSync() {
-      const publicRef = docRef();
-      
-      onSnapshot(publicRef, (docSnap) => {
-        if (docSnap.exists()) {
-          const cloudData = docSnap.data();
-          
-          // Override global standalone states with cloud values
+  const docRef = () => doc(db, 'artifacts', 'okinawa-collaborative-trip-2026', 'public', 'data', 'tripState', 'main');
+
+  function startFirestoreSync() {
+    if (!db) return;
+    if (window.firestoreUnsubscribe) window.firestoreUnsubscribe();
+
+    const unsubscribe = onSnapshot(docRef(), (docSnap) => {
+      if (docSnap.exists()) {
+        const cloudData = docSnap.data();
+        const cloudTime = new Date(cloudData.lastModifiedTime || 0);
+        const localTime = new Date(localStorage.getItem('lastLocalSync') || 0);
+
+        if (cloudTime > localTime) {
+          console.log("🔄 接收雲端更新");
           window.tripData = cloudData.tripData || window.tripData;
           window.gourmets = cloudData.gourmets || window.gourmets;
           window.packing = cloudData.packing || window.packing;
           window.expenses = cloudData.expenses || window.expenses;
           window.groupMembers = cloudData.groupMembers || window.groupMembers;
 
-          if (cloudData.lastModifiedBy && cloudData.lastModifiedBy !== window.currentNickName) {
-            triggerCloudNotify(`${cloudData.lastModifiedBy} 剛剛更新了沖繩行程數據！`);
-          }
-
-          // Trigger UI redraw dynamically
           loadAndRenderLocalData();
-          updateSyncIndicator(true);
-        } else {
-          // Document doesn't exist, create it with our current local storage
-          saveStateToCloud('初始雲端資料庫');
-        }
-      }, (error) => {
-        console.error("Firestore synchronizer snapped out:", error);
-        updateSyncIndicator(false);
-      });
-    }
-
-    // Register Push Hook
-    window.onCloudSaveTrigger = function(actionDescription) {
-      saveStateToCloud(actionDescription);
-    };
-
-    async function saveStateToCloud(actionDescription = '修改') {
-      if (!db || !auth || !auth.currentUser) return;
-
-      triggerCloudNotify(`正在即時同步數據至雲端...`);
-      try {
-        await setDoc(docRef(), {
-          tripData: window.tripData,
-          gourmets: window.gourmets,
-          packing: window.packing,
-          expenses: window.expenses,
-          groupMembers: window.groupMembers,
-          lastModifiedBy: window.currentNickName || '匿名同伴',
-          lastModifiedTime: new Date().toLocaleTimeString()
-        });
-        updateSyncIndicator(true);
-      } catch (e) {
-        console.error("Cloud synchronizer push failed:", e);
-        updateSyncIndicator(false);
-      }
-    }
-
-    function updateSyncIndicator(isOnline) {
-      const indicator = document.getElementById('sync-badge');
-      const text = document.getElementById('sync-status-text');
-      if (indicator && text) {
-        if (isOnline) {
-          indicator.className = "bg-emerald-50 text-emerald-600 text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 border border-emerald-100";
-          text.innerText = "雲端同步中";
-        } else {
-          indicator.className = "bg-rose-50 text-rose-600 text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 border border-rose-100 animate-pulse";
-          text.innerText = "本機離線儲存";
+          triggerCloudNotify(`${cloudData.lastModifiedBy || '同伴'} 剛更新了行程`);
         }
       }
+    }, (error) => {
+      console.error("Firestore 監聽錯誤:", error);
+      triggerCloudNotify("雲端同步暫時中斷 (離線模式)");
+    });
+
+    window.firestoreUnsubscribe = unsubscribe;
+  }
+
+  window.onCloudSaveTrigger = async function(actionDescription = '修改') {
+    if (!db || !auth?.currentUser) {
+      triggerCloudNotify("已儲存至本地 (雲端未連線)");
+      return;
     }
-  </script>
+
+    try {
+      await setDoc(docRef(), {
+        tripData: window.tripData,
+        gourmets: window.gourmets,
+        packing: window.packing,
+        expenses: window.expenses,
+        groupMembers: window.groupMembers,
+        lastModifiedBy: window.currentNickName || '匿名同伴',
+        lastModifiedTime: new Date().toISOString(),
+        version: Date.now()
+      }, { merge: true });
+
+      triggerCloudNotify(`✅ 已同步至雲端 (${actionDescription})`);
+    } catch (e) {
+      console.error("雲端同步失敗:", e);
+      triggerCloudNotify("雲端同步失敗，已儲存至本地");
+    }
+  };
+
+  window.addEventListener('beforeunload', () => {
+    if (window.firestoreUnsubscribe) window.firestoreUnsubscribe();
+  });
+</script>
+
+ 
 </body>
 </html>
