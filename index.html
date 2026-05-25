@@ -668,7 +668,9 @@
 
     // --- INSTANT RENDER & OFFLINE ENGINE ---
     // This executes immediately and ensures the page is NEVER blank
- function loadAndRenderLocalData() {
+    function loadAndRenderLocalData() {
+  console.log("📥 載入本地資料...");
+  
   window.tripData = JSON.parse(localStorage.getItem('okinawa_trip_data')) || defaultTripData;
   window.gourmets = JSON.parse(localStorage.getItem('okinawa_gourmets')) || initialGourmets;
   window.packing = JSON.parse(localStorage.getItem('okinawa_packing')) || initialPacking;
@@ -691,9 +693,12 @@
     setTimeout(() => {
       map.invalidateSize();
       updateMapRoute();
-    }, 150);
+    }, 200);
   }
+  
+  console.log("✅ 本地資料載入完成");
 }
+
    function saveStateLocally() {
   localStorage.setItem('okinawa_trip_data', JSON.stringify(window.tripData));
   localStorage.setItem('okinawa_gourmets', JSON.stringify(window.gourmets));
@@ -1444,8 +1449,9 @@
       }
     }
   </script>
-<!-- ========================================== -->
-<!-- IMPROVED CLOUD SYNC MODULE -->
+
+  <!-- ========================================== -->
+<!-- FIXED CLOUD SYNC MODULE -->
 <!-- ========================================== -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
@@ -1463,28 +1469,34 @@
 
   let app, auth, db;
 
-  try {
-    app = initializeApp(firebaseConfig);
-    auth = getAuth(app);
-    db = getFirestore(app);
+  async function initFirebase() {
+    try {
+      app = initializeApp(firebaseConfig);
+      auth = getAuth(app);
+      db = getFirestore(app);
 
-    const initAuth = async () => {
-      try {
-        await signInAnonymously(auth);
-      } catch (e) {
-        console.warn("Anonymous auth failed");
-      }
-    };
+      console.log("🔥 Firebase 初始化成功");
 
-    onAuthStateChanged(auth, (user) => {
-      if (user) {
-        startFirestoreSync();
-      } else {
-        initAuth();
-      }
-    });
-  } catch (err) {
-    console.error("Firebase init failed", err);
+      const initAuth = async () => {
+        try {
+          await signInAnonymously(auth);
+          console.log("✅ Anonymous 登入成功");
+        } catch (e) {
+          console.warn("Anonymous auth failed:", e);
+        }
+      };
+
+      onAuthStateChanged(auth, (user) => {
+        if (user) {
+          console.log("👤 用戶已登入:", user.uid);
+          startFirestoreSync();
+        } else {
+          initAuth();
+        }
+      });
+    } catch (err) {
+      console.error("❌ Firebase 初始化失敗:", err);
+    }
   }
 
   const docRef = () => doc(db, 'artifacts', 'okinawa-collaborative-trip-2026', 'public', 'data', 'tripState', 'main');
@@ -1493,27 +1505,37 @@
     if (!db) return;
     if (window.firestoreUnsubscribe) window.firestoreUnsubscribe();
 
+    console.log("📡 開始監聽雲端資料...");
+
     const unsubscribe = onSnapshot(docRef(), (docSnap) => {
       if (docSnap.exists()) {
         const cloudData = docSnap.data();
         const cloudTime = new Date(cloudData.lastModifiedTime || 0);
         const localTime = new Date(localStorage.getItem('lastLocalSync') || 0);
 
+        console.log(`⏰ 雲端時間: ${cloudTime}, 本地時間: ${localTime}`);
+
         if (cloudTime > localTime) {
-          console.log("🔄 接收雲端更新");
+          console.log("🔄 偵測到雲端更新，正在同步...");
           window.tripData = cloudData.tripData || window.tripData;
           window.gourmets = cloudData.gourmets || window.gourmets;
           window.packing = cloudData.packing || window.packing;
           window.expenses = cloudData.expenses || window.expenses;
           window.groupMembers = cloudData.groupMembers || window.groupMembers;
 
-          loadAndRenderLocalData();
-          triggerCloudNotify(`${cloudData.lastModifiedBy || '同伴'} 剛更新了行程`);
+          if (typeof loadAndRenderLocalData === 'function') {
+            loadAndRenderLocalData();
+          }
+          if (typeof triggerCloudNotify === 'function') {
+            triggerCloudNotify(`${cloudData.lastModifiedBy || '同伴'} 剛更新了行程`);
+          }
         }
       }
     }, (error) => {
-      console.error("Firestore 監聽錯誤:", error);
-      triggerCloudNotify("雲端同步暫時中斷 (離線模式)");
+      console.error("❌ Firestore 監聽錯誤:", error);
+      if (typeof triggerCloudNotify === 'function') {
+        triggerCloudNotify("雲端同步暫時中斷 (離線模式)");
+      }
     });
 
     window.firestoreUnsubscribe = unsubscribe;
@@ -1521,7 +1543,10 @@
 
   window.onCloudSaveTrigger = async function(actionDescription = '修改') {
     if (!db || !auth?.currentUser) {
-      triggerCloudNotify("已儲存至本地 (雲端未連線)");
+      console.warn("⚠️ 雲端未連線，僅存本地");
+      if (typeof triggerCloudNotify === 'function') {
+        triggerCloudNotify("已儲存至本地 (雲端未連線)");
+      }
       return;
     }
 
@@ -1537,17 +1562,27 @@
         version: Date.now()
       }, { merge: true });
 
-      triggerCloudNotify(`✅ 已同步至雲端 (${actionDescription})`);
+      console.log("✅ 成功上傳至雲端");
+      if (typeof triggerCloudNotify === 'function') {
+        triggerCloudNotify(`✅ 已同步至雲端 (${actionDescription})`);
+      }
     } catch (e) {
-      console.error("雲端同步失敗:", e);
-      triggerCloudNotify("雲端同步失敗，已儲存至本地");
+      console.error("❌ 雲端同步失敗:", e);
+      if (typeof triggerCloudNotify === 'function') {
+        triggerCloudNotify("雲端同步失敗，已儲存至本地");
+      }
     }
   };
 
+  // 啟動 Firebase
+  initFirebase();
+
+  // 清理
   window.addEventListener('beforeunload', () => {
     if (window.firestoreUnsubscribe) window.firestoreUnsubscribe();
   });
 </script>
+
 
  
 </body>
